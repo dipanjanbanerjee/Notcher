@@ -21,6 +21,7 @@
   import { focus } from "../../lib/stores/focus.svelte";
   import { noteTitle, notes } from "../../lib/stores/notes.svelte";
   import { vitals } from "../../lib/stores/vitals.svelte";
+  import { formatSpan, screen } from "../../lib/stores/screentime.svelte";
   import { formatClock, formatDate, formatDuration, meridiem } from "../../lib/time";
 
   let {
@@ -55,6 +56,10 @@
   $effect(() => {
     if (layout.includes("note") && !notes.items.length) void notes.load();
   });
+  $effect(() => {
+    if (layout.includes("screen")) return screen.watch();
+  });
+  const topApp = $derived(screen.today?.apps[0] ?? null);
 
   // ---- drag to reorder (pointer events: HTML drag and drop is off in the island,
   // which takes files from Explorer instead)
@@ -209,6 +214,17 @@
             <span class="muted">Copied items appear here</span>
           {/if}
         </button>
+      {:else if id === "screen"}
+        <button class="tile small" onclick={() => ongo("vitals")}>
+          <Icon name="screen" size={16} />
+          {#if screen.today}
+            <span class="value mono">{formatSpan(screen.today.totalSecs)}</span>
+            <span class="muted one-line">{topApp ? `Most in ${topApp.name}` : "Screen time today"}</span>
+          {:else}
+            <span class="value">Screen time</span>
+            <span class="muted">Loading…</span>
+          {/if}
+        </button>
       {:else if id === "note"}
         <button class="tile small" onclick={() => ongo("jot")}>
           <Icon name="pen" size={16} />
@@ -226,14 +242,16 @@
         <div class="edit-bar">
           <span class="grip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
           <span>{label(id)}</span>
-          <button aria-label="Remove {label(id)}" title="Remove" onclick={() => change(removeWidget(layout, id))}>×</button>
+          <button class="remove" aria-label="Remove {label(id)}" title="Remove" onclick={() => change(removeWidget(layout, id))}>
+            <Icon name="close" size={14} />
+          </button>
         </div>
       {/if}
     </div>
   {/each}
 
   {#if editing && freeCells > 0}
-    <div class="cell add" style:grid-column="span {Math.min(freeCells, 3)}">
+    <div class="cell add" style:grid-column="span {Math.min(freeCells, 4)}">
       {#if addable.length}
         <span class="muted">Add a widget</span>
         <div class="chips">
@@ -252,7 +270,7 @@
   .home {
     height: 100%;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-rows: repeat(2, minmax(0, 1fr));
     grid-auto-flow: row dense;
     gap: 10px;
@@ -291,15 +309,23 @@
   .cell.lifted > :global(*:first-child) { opacity: 0.9 !important; }
   @keyframes settle { from { transform: scale(0.97); } }
 
+  /* Sits on its own backing so the widget's text never shows through the label. */
   .edit-bar {
     position: absolute;
-    inset: auto 8px 8px 8px;
+    inset: auto 6px 6px 6px;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 4px;
+    padding: 3px 3px 3px 8px;
+    border-radius: 13px;
+    /* The surface colours are see-through, so lay them over the island's own colour. */
+    background: linear-gradient(var(--surface-2), var(--surface-2)), var(--island-bg);
+    box-shadow: 0 -6px 14px -4px rgb(0 0 0 / 0.45);
     font-size: 12px;
     color: var(--fg);
   }
+  .edit-bar span:not(.grip) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .edit-bar span:not(.grip) { flex: 1; }
   .grip { display: grid; grid-template-columns: repeat(2, 3px); gap: 2px; margin-right: 4px; opacity: 0.6; }
   .grip i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
@@ -315,6 +341,16 @@
     cursor: pointer;
     transition: background 150ms, transform 150ms;
   }
+  /* A drawn icon, not a text "×", so it sits in the exact centre of the circle. */
+  .edit-bar .remove {
+    width: 26px;
+    min-width: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .edit-bar .remove { background: var(--surface-1); }
   .edit-bar button:hover:not(:disabled),
   .chips button:hover { background: var(--glow, var(--accent)); color: #fff; }
   .edit-bar button:active,

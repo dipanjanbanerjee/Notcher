@@ -135,6 +135,18 @@ export const onAudioLevel = (h: (level: number) => void) => safeListen("audio://
 export const setBeatActive = (active: boolean) => safeInvoke("set_beat_active", { active });
 export const onVitals = (h: (v: Vitals) => void) => safeListen("vitals://update", h);
 
+// ------------------------------------------------------------------ screen time
+
+export interface ScreenTime {
+  totalSecs: number;
+  /** Most-used apps today, longest first. */
+  apps: { name: string; secs: number }[];
+}
+
+export const screenTime = () => safeInvoke<ScreenTime>("screen_time");
+/** Someone started or stopped using the PC (input in the last few minutes). */
+export const onScreenActive = (h: (p: { value: boolean }) => void) => safeListen("screen://active", h);
+
 // ------------------------------------------------------------------ taskbar speed meter
 
 export interface NetSpeed {

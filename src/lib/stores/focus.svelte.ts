@@ -15,7 +15,6 @@ import {
 } from "../focus";
 
 const STORAGE_KEY = "notcher.focus";
-const WATER_KEY = "notcher.water";
 
 function load(): FocusState {
   try {
@@ -30,18 +29,11 @@ function load(): FocusState {
 class FocusStore {
   state = $state<FocusState>(load());
   now = $state(Date.now());
-  /** Minutes between hydration nudges; 0 turns them off. */
+  /** Minutes of PC use between water reminders; 0 turns them off (set from settings). */
   waterEveryMin = $state(0);
-  private lastWater = Date.now();
-
-  constructor() {
-    try {
-      const w = Number(localStorage.getItem(WATER_KEY));
-      if (Number.isFinite(w) && w >= 0) this.waterEveryMin = w;
-    } catch {
-      /* storage unavailable: keep defaults */
-    }
-  }
+  /** Time the PC has been in use since the last water reminder. */
+  private sinceWaterMs = 0;
+  private lastUpdate = Date.now();
 
   get running() {
     return this.state.phase === "running";
@@ -83,24 +75,29 @@ class FocusStore {
     this.set(setCountdown(this.state, minutes));
   }
   setWater(minutes: number) {
+    if (minutes !== this.waterEveryMin) this.sinceWaterMs = 0;
     this.waterEveryMin = minutes;
-    this.lastWater = Date.now();
-    try {
-      localStorage.setItem(WATER_KEY, String(minutes));
-    } catch {
-      /* not persisted */
-    }
   }
 
-  /** Called every 250 ms. Returns what just happened, for live activities. */
-  update(now: number): { finished?: Segment | "countdown"; water?: boolean } {
+  /**
+   * Called about once a second. `active` is false while nobody is using the PC, so
+   * time away does not count toward the water reminder. Returns what just happened,
+   * for live activities.
+   */
+  update(now: number, active = true): { finished?: Segment | "countdown"; water?: boolean } {
     this.now = now;
     const result = tick(this.state, now);
     if (result.state !== this.state) this.set(result.state);
+    // Capped, so a sleeping PC or a stalled timer never counts as use.
+    const step = Math.min(5_000, Math.max(0, now - this.lastUpdate));
+    this.lastUpdate = now;
     let water = false;
-    if (this.waterEveryMin > 0 && now - this.lastWater >= this.waterEveryMin * 60_000) {
-      this.lastWater = now;
-      water = true;
+    if (this.waterEveryMin > 0 && active) {
+      this.sinceWaterMs += step;
+      if (this.sinceWaterMs >= this.waterEveryMin * 60_000) {
+        this.sinceWaterMs = 0;
+        water = true;
+      }
     }
     return { finished: result.finished, water };
   }

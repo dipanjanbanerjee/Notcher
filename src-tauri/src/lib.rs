@@ -8,6 +8,7 @@ mod netspeed;
 mod notes;
 mod notifications;
 mod platform;
+mod screentime;
 mod settings;
 mod tray;
 mod vitals;
@@ -192,6 +193,7 @@ pub fn run() {
             vitals::vitals_snapshot,
             vitals::set_vitals_active,
             beat::set_beat_active,
+            screentime::screen_time,
             filedrop::drop_start,
             filedrop::drop_stop,
             filedrop::drop_state,
@@ -222,6 +224,7 @@ pub fn run() {
             notifications::start(handle.clone());
             beat::start(handle.clone());
             netspeed::start(handle.clone());
+            screentime::start(handle.clone());
             platform::start_watcher(handle, mode, monitor);
             Ok(())
         })

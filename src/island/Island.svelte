@@ -19,6 +19,7 @@
     onAppNotification,
     onDropReceived,
     onAudioLevel,
+    onScreenActive,
     onSuppressed,
     onToggle,
     setBeatActive,
@@ -243,17 +244,30 @@
     void vitals.setActive(mode === "open");
   });
 
+  /** Someone is using the PC (Windows reports when they go idle or come back). */
+  let userActive = true;
+  /** A water reminder that came due during a full-screen app, shown once it closes. */
+  let waterDue = false;
+
   function onTick(t: number) {
     now = t;
-    const { finished, water } = focus.update(t);
+    const { finished, water } = focus.update(t, userActive);
+    if (water) waterDue = true;
     if (finished) {
       const title =
         finished === "focus" ? "Focus session done" : finished === "countdown" ? "Time's up" : "Break's over";
       const detail = finished === "focus" ? `${focus.label} started` : finished === "countdown" ? "Your timer finished" : "Ready for the next session";
       showLiveActivity({ kind: "timer", title, detail }, 5000);
-    } else if (water) {
-      showLiveActivity({ kind: "water" }, 4000);
+    } else if (waterDue && !suppressed && mode === "rest") {
+      // Never interrupts a full-screen video or game, or a panel you are using.
+      waterDue = false;
+      showLiveActivity({ kind: "water" }, 5000);
     }
+  }
+
+  function waterLabel(min: number) {
+    if (min >= 60) return min % 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : min === 60 ? "An hour" : `${min / 60} hours`;
+    return `${min} minutes`;
   }
 
   // ---------------------------------------------------------------- beat glow
@@ -353,6 +367,7 @@
         reportHitRegion(geometry);
       },
       /** Pretends a file arrived from the phone. */
+      water: () => showLiveActivity({ kind: "water" }, 5000),
       received: (name = "IMG_2044.jpg") => showLiveActivity({ kind: "drop", name, size: "2.8 MB" }, 3800),
       /** Pretends files are being dragged over the island. */
       drag: (on = true) => onFileDrag(on ? "enter" : "leave"),
@@ -394,6 +409,7 @@
     void loadSettings().then((s) => {
       settings = s;
       applyTheme(s.theme);
+      focus.setWater(s.waterReminder);
     });
     if (inTauri) void nowPlaying().then((np) => receiveTrack(np, false));
     else startBrowserPreview();
@@ -416,9 +432,11 @@
         void loadSettings().then((s) => {
           settings = s;
           applyTheme(s.theme);
+          focus.setWater(s.waterReminder);
         }),
       ),
     );
+    unlisten.push(onScreenActive(({ value }) => (userActive = value)));
 
     // Tick right after each new second so the clock's seconds change evenly.
     let tick: ReturnType<typeof setTimeout>;
@@ -575,7 +593,7 @@
             <div class="stack">
               <span class="eyebrow">Hydrate</span>
               <strong>Time for some water</strong>
-              <span class="muted">A glass now keeps you sharp</span>
+              <span class="muted">{waterLabel(settings.waterReminder)} at the screen. A glass keeps you sharp</span>
             </div>
           {:else if live.kind === "notification"}
             <span class="badge">

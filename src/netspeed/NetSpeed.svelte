@@ -24,18 +24,18 @@
   });
 </script>
 
-<!-- Today's usage, then upload on top and download below, like most taskbar meters. -->
+<!-- Upload on top and download below, then today's usage. -->
 <div class="meter {speed.size}" class:light={speed.lightTaskbar} class:left={speed.left}>
+  <div class="col">
+    <span><i>↑</i>{formatRate(speed.tx)}</span>
+    <span><i>↓</i>{formatRate(speed.rx)}</span>
+  </div>
   {#if speed.today !== null}
     <div class="col today">
       <span class="label">Today</span>
       <span>{formatBytes(speed.today, 2)}</span>
     </div>
   {/if}
-  <div class="col">
-    <span><i>↑</i>{formatRate(speed.tx)}</span>
-    <span><i>↓</i>{formatRate(speed.rx)}</span>
-  </div>
 </div>
 
 <style>
@@ -70,8 +70,9 @@
     align-items: flex-end;
   }
   .left .col { align-items: flex-start; }
-  .today { padding-right: 10px; border-right: 1px solid currentColor; border-color: rgb(127 127 127 / 0.45); }
-  .left .today { order: 2; padding: 0 0 0 10px; border-right: 0; border-left: 1px solid rgb(127 127 127 / 0.45); }
+  .today { padding-left: 10px; border-left: 1px solid rgb(127 127 127 / 0.45); }
+  /* Mirrored at the left end of the taskbar: today's usage first. */
+  .left .today { order: -1; padding: 0 10px 0 0; border-left: 0; border-right: 1px solid rgb(127 127 127 / 0.45); }
   .label,
   i {
     font-style: normal;

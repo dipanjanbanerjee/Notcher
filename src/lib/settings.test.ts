@@ -17,3 +17,13 @@ describe("settings", () => {
     expect("extra" in s).toBe(false);
   });
 });
+
+describe("water reminder setting", () => {
+  it("defaults to an hour and only accepts the offered choices", () => {
+    expect(sanitize({}).waterReminder).toBe(60);
+    expect(sanitize({ waterReminder: 0 }).waterReminder).toBe(0);
+    expect(sanitize({ waterReminder: 45 }).waterReminder).toBe(45);
+    expect(sanitize({ waterReminder: 7 }).waterReminder).toBe(60);
+    expect(sanitize({ waterReminder: "30" }).waterReminder).toBe(60);
+  });
+});
