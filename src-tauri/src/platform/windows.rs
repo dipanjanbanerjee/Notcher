@@ -27,12 +27,13 @@ use windows::Win32::{
     UI::{
         HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         Shell::{
-            SHQueryUserNotificationState, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
+            SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE,
+            QUNS_RUNNING_D3D_FULL_SCREEN,
         },
         WindowsAndMessaging::{
             GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
             GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_HWNDNEXT,
-            WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+            WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
         },
     },
 };
@@ -206,38 +207,47 @@ pub fn fullscreen_app_active<R: Runtime>(
     else {
         return false;
     };
-    // Direct3D exclusive full-screen and presentation mode are reported by the shell.
+    // The shell itself tracks full-screen apps (browser F11, video players, games and
+    // presentations) for the foreground window, to keep notifications quiet.
     if let Ok(state) = unsafe { SHQueryUserNotificationState() } {
-        if state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE {
+        if state == QUNS_BUSY
+            || state == QUNS_RUNNING_D3D_FULL_SCREEN
+            || state == QUNS_PRESENTATION_MODE
+        {
             let foreground = unsafe { GetForegroundWindow() };
-            if unsafe { MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST) }
-                == unsafe { MonitorFromWindow(own, MONITOR_DEFAULTTONEAREST) }
+            if foreground != own
+                && unsafe { MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST) }
+                    == unsafe { MonitorFromWindow(own, MONITOR_DEFAULTTONEAREST) }
             {
                 return true;
             }
         }
     }
+    // Otherwise walk the z-order from the top, looking past small always-on-top
+    // overlays, until the first real app window on this monitor.
     let mut windows = Vec::new();
     let mut hwnd = unsafe { GetTopWindow(None) }.unwrap_or_default();
     let mut guard = 0;
-    while !hwnd.is_invalid() && guard < 512 {
+    while !hwnd.is_invalid() && guard < 1024 {
         guard += 1;
         if is_candidate(hwnd, own) {
             let mut rect = RECT::default();
             if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
+                let ex = unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) } as u32;
                 let w = StackedWindow {
                     x: rect.left,
                     y: rect.top,
                     width: (rect.right - rect.left).max(0) as u32,
                     height: (rect.bottom - rect.top).max(0) as u32,
                     fullscreen: false,
+                    overlay: ex & WS_EX_TOPMOST.0 != 0,
                 };
                 let on_monitor = monitor.contains(
                     w.x as f64 + w.width as f64 / 2.0,
                     w.y as f64 + w.height as f64 / 2.0,
                 );
                 windows.push(w);
-                if on_monitor {
+                if on_monitor && !w.overlay {
                     break;
                 }
             }

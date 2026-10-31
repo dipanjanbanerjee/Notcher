@@ -100,6 +100,9 @@ pub struct StackedWindow {
     pub height: u32,
     /// The window manager reports it as full-screen.
     pub fullscreen: bool,
+    /// Always-on-top overlay (picture-in-picture, game overlays, sticky tools). It
+    /// only counts when it covers the whole monitor; otherwise the check looks past it.
+    pub overlay: bool,
 }
 
 impl StackedWindow {
@@ -127,10 +130,15 @@ impl StackedWindow {
 /// Looking at the stacking order rather than the focused window keeps the island hidden
 /// even after the island itself was clicked.
 pub fn fullscreen_on_monitor(windows: &[StackedWindow], monitor: &MonitorRect) -> bool {
-    windows
-        .iter()
-        .find(|w| w.centre_on(monitor))
-        .is_some_and(|w| w.fullscreen || w.covers(monitor))
+    for w in windows.iter().filter(|w| w.centre_on(monitor)) {
+        if w.fullscreen || w.covers(monitor) {
+            return true;
+        }
+        if !w.overlay {
+            return false;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -152,7 +160,32 @@ mod tests {
             width,
             height,
             fullscreen,
+            overlay: false,
         }
+    }
+
+    #[test]
+    fn small_always_on_top_overlays_are_looked_past() {
+        let pip = StackedWindow {
+            overlay: true,
+            ..win(1500, 800, 400, 225, false)
+        };
+        assert!(fullscreen_on_monitor(
+            &[pip, win(0, 0, 1920, 1080, false)],
+            &MONITOR
+        ));
+        assert!(!fullscreen_on_monitor(
+            &[pip, win(100, 100, 800, 600, false)],
+            &MONITOR
+        ));
+        // A normal window is never looked past.
+        assert!(!fullscreen_on_monitor(
+            &[
+                win(1500, 800, 400, 225, false),
+                win(0, 0, 1920, 1080, false)
+            ],
+            &MONITOR
+        ));
     }
 
     #[test]
