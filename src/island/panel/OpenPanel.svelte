@@ -1,6 +1,6 @@
 <script lang="ts" module>
-  export type TabId = "home" | "clips" | "jot" | "focus" | "tools" | "vitals" | "drop";
-  export const TAB_IDS: readonly TabId[] = ["home", "clips", "jot", "focus", "tools", "vitals", "drop"];
+  export type TabId = "home" | "clips" | "jot" | "focus" | "convert" | "weather" | "vitals" | "drop";
+  export const TAB_IDS: readonly TabId[] = ["home", "clips", "jot", "focus", "convert", "weather", "vitals", "drop"];
 </script>
 
 <script lang="ts">
@@ -11,7 +11,8 @@
   import FocusTab from "./FocusTab.svelte";
   import HomeTab from "./HomeTab.svelte";
   import JotTab from "./JotTab.svelte";
-  import ToolsTab from "./ToolsTab.svelte";
+  import ConvertTab from "./ConvertTab.svelte";
+  import WeatherTab from "./WeatherTab.svelte";
   import VitalsTab from "./VitalsTab.svelte";
 
   let { track, clock, clock24h, tab = $bindable(), dragging = false }: {
@@ -28,7 +29,8 @@
     { id: "clips", label: "Clipboard", icon: "clipboard" },
     { id: "jot", label: "Notes", icon: "pen" },
     { id: "focus", label: "Focus", icon: "timer" },
-    { id: "tools", label: "Tools", icon: "tools" },
+    { id: "convert", label: "Convert", icon: "tools" },
+    { id: "weather", label: "Weather", icon: "partly" },
     { id: "vitals", label: "System", icon: "pulse" },
     { id: "drop", label: "Drop", icon: "beam" },
   ];
@@ -47,8 +49,8 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    // Ctrl+1…7 switches tabs while the island is open.
-    if ((e.ctrlKey || e.metaKey) && /^[1-7]$/.test(e.key)) {
+    // Ctrl+1…8 switches tabs while the island is open.
+    if ((e.ctrlKey || e.metaKey) && /^[1-8]$/.test(e.key)) {
       e.preventDefault();
       go(TABS[Number(e.key) - 1].id);
     }
@@ -95,8 +97,10 @@
           <JotTab />
         {:else if tab === "focus"}
           <FocusTab />
-        {:else if tab === "tools"}
-          <ToolsTab />
+        {:else if tab === "convert"}
+          <ConvertTab />
+        {:else if tab === "weather"}
+          <WeatherTab />
         {:else if tab === "drop"}
           <DropTab {dragging} />
         {:else}

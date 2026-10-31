@@ -38,6 +38,26 @@ async function safeListen<T>(event: string, handler: (payload: T) => void): Prom
 }
 
 export const setHitRegion = (region: Rect) => safeInvoke("set_hit_region", { region });
+
+export interface Position {
+  lat: number;
+  lon: number;
+  /** Metres. */
+  accuracy: number;
+}
+/** The PC's location from Windows, or null when location is off. */
+export const preciseLocation = () => safeInvoke<Position>("precise_location");
+
+/** Downloads and installs an update, then restarts Notcher. Resolves to an error message, or null. */
+export async function installUpdate(url: string, version: string): Promise<string | null> {
+  if (!inTauri) return "Updates install from the app";
+  try {
+    await invoke("install_update", { url, version });
+    return null;
+  } catch (err) {
+    return String(err);
+  }
+}
 export const focusIsland = () => safeInvoke("focus_island");
 export const openSettings = () => safeInvoke("open_settings");
 /** Settings (or another window) is opening: fold the island away so it doesn't cover it. */

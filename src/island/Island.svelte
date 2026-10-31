@@ -12,6 +12,7 @@
   import {
     focusIsland,
     inTauri,
+    installUpdate,
     nowPlaying,
     onMedia,
     onNativePointer,
@@ -42,6 +43,8 @@
   import { SPRINGS, SpringGroup } from "../lib/spring";
   import { BeatFollower } from "../lib/beat";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { findUpdate } from "../lib/updates";
   import { formatBytes } from "../lib/stores/vitals.svelte";
   import { formatClock, formatDuration, formatShortDate, meridiem } from "../lib/time";
 
@@ -164,11 +167,26 @@
     if (mode !== "open") later("intent", delay, () => dispatch({ type: "hoverIntent" }));
   }
 
+  /** True while the user is typing in the open panel (a note, a city, an amount). */
+  function typing() {
+    const el = document.activeElement as HTMLElement | null;
+    return mode === "open" && !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+  }
+
+  /** Closes after the grace period, unless the pointer came back or the user is typing.
+   *  While typing, the island stays open until Escape, a click elsewhere, or the pointer
+   *  leaving after the text box loses focus. */
+  function leaveSoon() {
+    later("leave", TIMING.leaveGrace, () => {
+      if (!hovered && !typing()) dispatch({ type: "leave" });
+    });
+  }
+
   function pointerLeave() {
     if (!hovered) return;
     hovered = false;
     cancel("intent");
-    later("leave", TIMING.leaveGrace, () => dispatch({ type: "leave" }));
+    leaveSoon();
   }
 
   function toggle() {
@@ -182,7 +200,8 @@
     | { kind: "water" }
     | { kind: "copied"; text: string }
     | { kind: "notification"; app: string; title: string; body: string; icon: string | null }
-    | { kind: "drop"; name: string; size: string };
+    | { kind: "drop"; name: string; size: string }
+    | { kind: "update"; version: string; installing: boolean };
   let live = $state<LiveActivity>({ kind: "track" });
 
   function showLiveActivity(activity: LiveActivity, duration = TIMING.liveDuration) {
@@ -227,6 +246,7 @@
   function readTab(): TabId {
     try {
       const t = localStorage.getItem(TAB_KEY);
+      if (t === "tools") return "convert"; // the 1.0 Tools tab was split in two
       if (TAB_IDS.includes(t as TabId)) return t as TabId;
     } catch {
       /* storage unavailable */
@@ -286,20 +306,25 @@
     else startBeatLoop();
   });
 
-  /** Writes straight to the element each frame; no Svelte state, so nothing else re-renders. */
+  /**
+   * Writes straight to the element, about 15 times a second: enough for a soft glow,
+   * and far cheaper than redrawing the transparent window every frame.
+   */
+  const BEAT_FRAME_MS = 66;
   function startBeatLoop() {
     if (beatFrame) return;
     beatLast = performance.now();
-    const frame = (t: number) => {
+    const frame = () => {
+      const t = performance.now();
       const s = beat.step(t - beatLast, t);
       beatLast = t;
       if (beatEl) {
-        beatEl.style.opacity = (s * 0.9).toFixed(3);
-        beatEl.style.transform = `translateX(-50%) scaleX(${(0.55 + 0.45 * s).toFixed(3)})`;
+        beatEl.style.opacity = (s * 0.9).toFixed(2);
+        beatEl.style.transform = `translateX(-50%) scaleX(${(0.55 + 0.45 * s).toFixed(2)})`;
       }
-      beatFrame = !beatOn && beat.quiet ? 0 : requestAnimationFrame(frame);
+      beatFrame = !beatOn && beat.quiet ? 0 : window.setTimeout(frame, BEAT_FRAME_MS);
     };
-    beatFrame = requestAnimationFrame(frame);
+    beatFrame = window.setTimeout(frame, BEAT_FRAME_MS);
   }
 
   // ---------------------------------------------------------------- media
@@ -454,6 +479,28 @@
       tick = setTimeout(scheduleTick, 1000 - (t % 1000) + 2);
     };
     scheduleTick();
+
+    // Updates: shortly after Notcher starts, install a newer release if there is one
+    // (when "Install updates automatically" is on). Later checks only say it's ready.
+    let updateTimer: ReturnType<typeof setTimeout>;
+    const checkForUpdate = async (atStartup: boolean) => {
+      try {
+        const [current, prefs] = await Promise.all([getVersion(), loadSettings()]);
+        const release = await findUpdate(current);
+        if (!release) return;
+        const install = atStartup && prefs.autoUpdate;
+        showLiveActivity({ kind: "update", version: release.version, installing: install }, install ? 6000 : 6500);
+        if (install) {
+          const error = await installUpdate(release.url, release.version);
+          if (error) console.warn("[notcher] update failed:", error);
+        }
+      } catch {
+        /* offline; try again later */
+      } finally {
+        updateTimer = setTimeout(() => void checkForUpdate(false), 6 * 3600_000);
+      }
+    };
+    if (inTauri) updateTimer = setTimeout(() => void checkForUpdate(true), 20_000);
     unlisten.push(vitals.listen());
     unlisten.push(
       clips.listen((clip) => {
@@ -493,6 +540,11 @@
     const onBlur = () => {
       if (mode === "open" && !hovered) dispatch({ type: "leave" });
     };
+    // Finished typing with the pointer already away: close as usual.
+    const onFocusOut = () => {
+      if (mode === "open" && !hovered) setTimeout(() => !hovered && !typing() && leaveSoon(), 0);
+    };
+    document.addEventListener("focusout", onFocusOut);
     // The OS only delivers pointer input inside the hit region, so the pointer being
     // anywhere in that region means it is on the island (including the hover margin).
     const onMove = (e: PointerEvent) => {
@@ -510,12 +562,14 @@
 
     return () => {
       clearTimeout(tick);
+      clearTimeout(updateTimer);
       document.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onOut);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("blur", onBlur);
+      document.removeEventListener("focusout", onFocusOut);
       springs.stop();
-      cancelAnimationFrame(beatFrame);
+      clearTimeout(beatFrame);
       for (const t of timers.values()) clearTimeout(t);
       for (const u of unlisten) void u.then((f) => f());
     };
@@ -533,7 +587,7 @@
     style:border-radius="0 0 {geometry.radius * 1.15}px {geometry.radius * 1.15}px"
   >
     <div class="shadow"></div>
-    <div class="glow" class:on={glowOn} class:breathe={glowOn && mode === "rest"}></div>
+    <div class="glow" class:on={glowOn}></div>
     <div class="beat" bind:this={beatEl}></div>
   </div>
   <svg class="shape" width={WINDOW_WIDTH} height="400" aria-hidden="true">
@@ -618,6 +672,13 @@
               <span class="eyebrow">From your phone</span>
               <strong>{live.name}</strong>
               <span class="muted">{live.size} · saved to Notcher Drop</span>
+            </div>
+          {:else if live.kind === "update"}
+            <span class="badge"><Icon name="arrowDown" size={22} /></span>
+            <div class="stack">
+              <span class="eyebrow">Update</span>
+              <strong>Notcher {live.version}{live.installing ? " is installing" : " is ready"}</strong>
+              <span class="muted">{live.installing ? "Notcher restarts in a few seconds" : "Install it from Settings › Updates"}</span>
             </div>
           {:else if live.kind === "copied"}
             <span class="badge"><Icon name="copy" size={22} /></span>
@@ -709,13 +770,6 @@
   .glow.on {
     opacity: 0.75;
   }
-  .glow.breathe {
-    animation: breathe 3.6s ease-in-out infinite;
-  }
-  @keyframes breathe {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.75; }
-  }
 
   .island {
     position: absolute;
@@ -740,6 +794,10 @@
       transform 90ms ease,
       visibility 0s linear 90ms;
     will-change: opacity, transform;
+  }
+  /* Nothing hidden may keep animating: it would keep the window repainting. */
+  .content:not(.visible) :global(*) {
+    animation-play-state: paused !important;
   }
   .content.visible {
     opacity: 1;
@@ -767,9 +825,20 @@
   .rest-time,
   .rest-time small {
     font-size: 13px;
-    font-weight: 400;
-    color: var(--muted);
+    font-weight: 500;
   }
+  /* A soft halo, tinted like the island's glow, so the resting text lights up the
+     dark around it instead of sitting flat on black. */
+  .rest-date,
+  .rest-time {
+    --halo: var(--glow, var(--accent));
+    text-shadow:
+      0 0 6px color-mix(in srgb, var(--halo) 75%, transparent),
+      0 0 16px color-mix(in srgb, var(--halo) 45%, transparent);
+  }
+  .rest-date { color: color-mix(in srgb, var(--fg) 78%, var(--halo)); }
+  .rest-time { color: var(--fg); font-weight: 600; letter-spacing: 0.01em; }
+  .rest-time small { color: color-mix(in srgb, var(--fg) 75%, transparent); font-weight: 500; }
   .rest-time small {
     margin-left: 4px;
   }
@@ -828,6 +897,5 @@
 
   @media (prefers-reduced-motion: reduce) {
     .content, .content.visible { transform: none; }
-    .glow.breathe { animation: none; opacity: 0.6; }
   }
 </style>

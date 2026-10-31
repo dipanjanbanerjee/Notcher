@@ -3,6 +3,7 @@ mod clipboard;
 mod db;
 mod filedrop;
 mod island;
+mod location;
 mod media;
 mod netspeed;
 mod notes;
@@ -11,6 +12,7 @@ mod platform;
 mod screentime;
 mod settings;
 mod tray;
+mod updater;
 mod vitals;
 
 use island::{HitRegion, IslandState, WINDOW_HEIGHT, WINDOW_WIDTH};
@@ -207,11 +209,14 @@ pub fn run() {
             filedrop::drop_thumb,
             filedrop::drop_clear_received,
             filedrop::drop_open,
+            location::precise_location,
+            updater::install_update,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
             let data_dir = handle.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
+            updater::refresh_icons_once(&data_dir);
             let db = db::Db::open(&data_dir.join("notcher.db"))
                 .map_err(|e| format!("could not open the database: {e}"))?;
             handle.manage(db);

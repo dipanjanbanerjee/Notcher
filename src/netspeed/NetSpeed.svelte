@@ -70,6 +70,8 @@
     align-items: flex-end;
   }
   .left .col { align-items: flex-start; }
+  /* "Today" and its total sit centred over each other, on either side. */
+  .col.today, .left .col.today { align-items: center; text-align: center; }
   .today { padding-left: 10px; border-left: 1px solid rgb(127 127 127 / 0.45); }
   /* Mirrored at the left end of the taskbar: today's usage first. */
   .left .today { order: -1; padding: 0 10px 0 0; border-left: 0; border-right: 1px solid rgb(127 127 127 / 0.45); }

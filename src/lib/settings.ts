@@ -41,10 +41,15 @@ export interface Settings {
   taskbarSpeedOffset: number;
   /** Minutes of PC use between "drink some water" pop-ups; 0 turns them off. */
   waterReminder: number;
-  /** City for the weather; empty means "work it out from my connection". */
+  /** Name of the place picked for the weather; empty means "find me automatically". */
   weatherCity: string;
+  /** Where that place is (0, 0 when not picked). */
+  weatherLat: number;
+  weatherLon: number;
   /** Celsius or Fahrenheit for the weather. */
   tempUnit: "c" | "f";
+  /** Check for a new version at startup and install it. */
+  autoUpdate: boolean;
 }
 
 /** How far the taskbar meter can be nudged either way, in pixels. */
@@ -73,7 +78,10 @@ export const DEFAULT_SETTINGS: Settings = {
   taskbarSpeedOffset: 0,
   waterReminder: 60,
   weatherCity: "",
+  weatherLat: 0,
+  weatherLon: 0,
   tempUnit: "c",
+  autoUpdate: true,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [
@@ -101,6 +109,11 @@ export function sanitize(raw: Record<string, unknown>): Settings {
     ? Math.max(-MAX_METER_OFFSET, Math.min(MAX_METER_OFFSET, Math.round(out.taskbarSpeedOffset)))
     : 0;
   out.weatherCity = out.weatherCity.trim().slice(0, 80);
+  const validCoord = (v: number, limit: number) => Number.isFinite(v) && Math.abs(v) <= limit;
+  if (!validCoord(out.weatherLat, 90) || !validCoord(out.weatherLon, 180)) {
+    out.weatherLat = 0;
+    out.weatherLon = 0;
+  }
   if (out.tempUnit !== "f") out.tempUnit = "c";
   if (!(WATER_CHOICES as readonly number[]).includes(out.waterReminder)) out.waterReminder = DEFAULT_SETTINGS.waterReminder;
   return out;
