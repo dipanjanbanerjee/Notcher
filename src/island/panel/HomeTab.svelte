@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tick } from "svelte";
+  import { flip } from "svelte/animate";
   import Art from "../../components/Art.svelte";
   import Icon from "../../components/Icon.svelte";
   import { mediaCommand, type NowPlaying } from "../../lib/bridge";
@@ -10,6 +12,7 @@
     cellsUsed,
     loadLayout,
     moveWidget,
+    placeWidget,
     removeWidget,
     saveLayout,
     type WidgetId,
@@ -52,11 +55,97 @@
   $effect(() => {
     if (layout.includes("note") && !notes.items.length) void notes.load();
   });
+
+  // ---- drag to reorder (pointer events: HTML drag and drop is off in the island,
+  // which takes files from Explorer instead)
+
+  let grid: HTMLDivElement;
+  const cells: Record<string, HTMLDivElement> = {};
+  let dragId = $state<WidgetId | null>(null);
+  let dragX = $state(0);
+  let dragY = $state(0);
+  let grab = { x: 0, y: 0 };
+  let pointer = { x: 0, y: 0 };
+  /** The widget we last swapped with; ignored until the pointer leaves it, so two
+   *  widgets of different widths don't keep trading places. */
+  let lastTarget: WidgetId | null = null;
+
+  /** A cell's place in the grid, ignoring any transform or animation. */
+  const home = (el: HTMLElement) => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight });
+  const inside = (r: ReturnType<typeof home>, x: number, y: number) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+
+  function startDrag(e: PointerEvent, id: WidgetId) {
+    if (!editing || e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+    const el = cells[id];
+    const g = grid.getBoundingClientRect();
+    pointer = { x: e.clientX - g.left, y: e.clientY - g.top };
+    const r = home(el);
+    grab = { x: pointer.x - r.x, y: pointer.y - r.y };
+    dragId = id;
+    dragX = 0;
+    dragY = 0;
+    lastTarget = null;
+    el.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+
+  async function moveDrag(e: PointerEvent) {
+    if (!dragId) return;
+    const g = grid.getBoundingClientRect();
+    pointer = { x: e.clientX - g.left, y: e.clientY - g.top };
+    follow();
+    const target = layout.find((id) => id !== dragId && cells[id] && inside(home(cells[id]), pointer.x, pointer.y));
+    if (lastTarget && target !== lastTarget) lastTarget = null;
+    if (!target || target === lastTarget) return;
+    lastTarget = target;
+    change(placeWidget(layout, dragId, layout.indexOf(target)));
+    await tick();
+    follow();
+  }
+
+  /** Keeps the dragged widget under the pointer wherever the grid has placed it. */
+  function follow() {
+    if (!dragId) return;
+    const r = home(cells[dragId]);
+    dragX = pointer.x - grab.x - r.x;
+    dragY = pointer.y - grab.y - r.y;
+  }
+
+  function endDrag() {
+    dragId = null;
+    lastTarget = null;
+  }
+
+  function onKey(e: KeyboardEvent, id: WidgetId) {
+    if (!editing) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") change(moveWidget(layout, id, -1));
+    else if (e.key === "ArrowRight" || e.key === "ArrowDown") change(moveWidget(layout, id, 1));
+    else if (e.key === "Delete" || e.key === "Backspace") change(removeWidget(layout, id));
+    else return;
+    e.preventDefault();
+  }
 </script>
 
-<div class="home" class:editing>
-  {#each layout as id, i (id)}
-    <div class="cell" class:wide={id === "media"} class:bare={id === "clock"}>
+<div class="home" class:editing class:dragging={dragId !== null} bind:this={grid}>
+  {#each layout as id (id)}
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex (it is a button while editing) -->
+    <div
+      class="cell"
+      class:wide={id === "media"}
+      class:bare={id === "clock"}
+      class:lifted={dragId === id}
+      bind:this={cells[id]}
+      style:transform={dragId === id ? `translate(${dragX}px, ${dragY}px) scale(1.03)` : null}
+      animate:flip={{ duration: dragId === id ? 0 : 240, easing: (t) => 1 - Math.pow(1 - t, 3) }}
+      onpointerdown={(e) => startDrag(e, id)}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+      onkeydown={(e) => onKey(e, id)}
+      role={editing ? "button" : undefined}
+      tabindex={editing ? 0 : undefined}
+      aria-label={editing ? `${label(id)}. Drag to move, or use the arrow keys.` : undefined}
+    >
       {#if id === "clock"}
         <section class="time">
           <div class="clock">
@@ -135,10 +224,9 @@
 
       {#if editing}
         <div class="edit-bar">
+          <span class="grip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
           <span>{label(id)}</span>
-          <button aria-label="Move {label(id)} earlier" disabled={i === 0} onclick={() => change(moveWidget(layout, id, -1))}>‹</button>
-          <button aria-label="Move {label(id)} later" disabled={i === layout.length - 1} onclick={() => change(moveWidget(layout, id, 1))}>›</button>
-          <button aria-label="Remove {label(id)}" onclick={() => change(removeWidget(layout, id))}>×</button>
+          <button aria-label="Remove {label(id)}" title="Remove" onclick={() => change(removeWidget(layout, id))}>×</button>
         </div>
       {/if}
     </div>
@@ -185,8 +273,22 @@
     border-radius: 16px;
     outline: 1.5px dashed var(--hairline);
     outline-offset: -1px;
+    cursor: grab;
+    touch-action: none;
     animation: settle 240ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
   }
+  .editing .cell:not(.add):hover { outline-color: var(--glow, var(--accent)); }
+  .editing .cell:focus-visible { outline: 2px solid var(--glow, var(--accent)); }
+  .dragging, .dragging .cell { cursor: grabbing !important; }
+  .cell.lifted {
+    z-index: 5;
+    background: var(--surface-2);
+    outline: 1.5px solid var(--glow, var(--accent)) !important;
+    box-shadow: 0 14px 34px -10px rgb(0 0 0 / 0.65);
+    transition: box-shadow 160ms;
+    will-change: transform;
+  }
+  .cell.lifted > :global(*:first-child) { opacity: 0.9 !important; }
   @keyframes settle { from { transform: scale(0.97); } }
 
   .edit-bar {
@@ -198,7 +300,9 @@
     font-size: 12px;
     color: var(--fg);
   }
-  .edit-bar span { flex: 1; }
+  .edit-bar span:not(.grip) { flex: 1; }
+  .grip { display: grid; grid-template-columns: repeat(2, 3px); gap: 2px; margin-right: 4px; opacity: 0.6; }
+  .grip i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
   .edit-bar button,
   .chips button {
     min-width: 26px;

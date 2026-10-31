@@ -10,7 +10,7 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
 - **Click-through:** only the island itself takes the mouse, and everything around it clicks straight through to your apps.
 - **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Windows Media Player…), with play/pause, next and previous. A short *live* activity appears when the track changes.
 - **Open panel with six tabs** (`Ctrl+1` to `Ctrl+6`):
-  - **Home:** clock, music controls, and quick looks at your timer, system, last copy and latest note. Press the pen button to move, remove or add widgets.
+  - **Home:** clock, music controls, and quick looks at your timer, system, last copy and latest note. Press the pen button, then drag widgets to rearrange them, or remove and add them.
   - **Clipboard:** the last 200 things you copied, text and images, with search and pinning. Click to copy again. Passwords from password managers are never saved.
   - **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
   - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island, and a water reminder can nudge you.
@@ -20,7 +20,7 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
 - **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
 - **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
 - **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
-- **Internet speed on the taskbar:** upload and download speed sit next to the tray icons. Turn it off in Settings › Taskbar.
+- **Internet speed on the taskbar:** upload and download speed, plus how much data you've used today. In Settings › Taskbar you can pick small, medium or large text, put it on the left or right of the taskbar, or turn it off.
 - **Multi-monitor:** the island follows the screen your cursor is on.
 - **Shortcut:** `Ctrl+Alt+Space` opens and closes the island from anywhere (you can change it).
 - **Themes:** Obsidian, Daylight, Neon, Paper.

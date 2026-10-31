@@ -142,6 +142,11 @@ export interface NetSpeed {
   rx: number;
   tx: number;
   lightTaskbar: boolean;
+  /** Bytes used today, when shown. */
+  today: number | null;
+  size: "small" | "medium" | "large";
+  /** On the left of the taskbar. */
+  left: boolean;
 }
 
 export const onNetSpeed = (h: (s: NetSpeed) => void) => safeListen("netspeed://update", h);

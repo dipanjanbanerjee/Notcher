@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use sysinfo::{Disks, Networks, System};
@@ -18,6 +18,14 @@ const DISK_EVERY: Duration = Duration::from_secs(30);
 
 static ACTIVE: AtomicBool = AtomicBool::new(false);
 static LATEST: Mutex<Option<Vitals>> = Mutex::new(None);
+/// Bytes sent and received on all network adapters since Notcher started.
+static NET_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+/// Bytes sent and received since Notcher started (for the daily usage count).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn net_total() -> u64 {
+    NET_TOTAL.load(Ordering::Relaxed)
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -108,6 +116,7 @@ pub fn start<R: Runtime>(app: AppHandle<R>) {
                 let (rx, tx) = networks.iter().fold((0u64, 0u64), |(r, t), (_, n)| {
                     (r + n.received(), t + n.transmitted())
                 });
+                NET_TOTAL.fetch_add(rx + tx, Ordering::Relaxed);
                 if last_disk.elapsed() >= DISK_EVERY {
                     disks.refresh(true);
                     disk = main_disk(&disks);
