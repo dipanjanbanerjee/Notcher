@@ -10,10 +10,10 @@ describe("settings", () => {
   });
 
   it("drops wrong types and unknown themes", () => {
-    const s = sanitize({ glow: "yes", theme: "rainbow", hoverToOpen: true, extra: 1 });
+    const s = sanitize({ glow: "yes", theme: "rainbow", clock24h: true, extra: 1 });
     expect(s.glow).toBe(DEFAULT_SETTINGS.glow);
     expect(s.theme).toBe("obsidian");
-    expect(s.hoverToOpen).toBe(true);
+    expect(s.clock24h).toBe(true);
     expect("extra" in s).toBe(false);
   });
 });

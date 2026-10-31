@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimatePosition, formatClock, formatDuration } from "./time";
+import { estimatePosition, formatClock, formatDuration, formatShortDate } from "./time";
 
 describe("time helpers", () => {
   it("formats durations", () => {
@@ -15,6 +15,13 @@ describe("time helpers", () => {
     expect(formatClock(d, false)).toBe("12:05");
     expect(formatClock(d, true)).toBe("00:05");
     expect(formatClock(new Date(2026, 0, 1, 15, 30), false)).toBe("3:30");
+  });
+
+  it("formats seconds and the short date", () => {
+    const d = new Date(2026, 9, 31, 22, 52, 7);
+    expect(formatClock(d, false, true)).toBe("10:52:07");
+    expect(formatClock(d, true, true)).toBe("22:52:07");
+    expect(formatShortDate(d, "en-US")).toBe("Sat, Oct 31");
   });
 
   it("estimates playback position", () => {
