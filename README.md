@@ -71,7 +71,7 @@ site/                the website (GitHub Pages)
 
 ### Releasing
 
-Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add notes in `docs/releases/vX.Y.Z.md`, then push a tag `vX.Y.Z`. The Release workflow builds the installers and publishes them. The website deploys from `site/` on every push to `main`.
+Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add notes in `docs/releases/vX.Y.Z.md`, and merge to `main`. The Release workflow sees a version with no release yet, builds the installers and publishes them under the tag `vX.Y.Z`. It can also be run by hand from the Actions tab. The website deploys from `site/` on every push to `main`.
 
 ### Troubleshooting
 
