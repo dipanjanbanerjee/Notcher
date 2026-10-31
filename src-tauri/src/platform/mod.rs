@@ -132,6 +132,9 @@ pub fn start_watcher<R: Runtime>(
             };
             let mut current_monitor = initial;
             let mut suppressed = false;
+            // A change must be seen on two checks in a row (~0.8 s) before the island
+            // reacts, so a window that flashes on top for a moment can't make it jump.
+            let mut pending_change = 0u8;
             let mut pointer = backend::PointerTracker::default();
             let mut last_slow = Instant::now() - SLOW_POLL;
             loop {
@@ -174,9 +177,15 @@ pub fn start_watcher<R: Runtime>(
                     let fullscreen = current_monitor.is_some_and(|m| {
                         backend::fullscreen_app_active(&window, &m, include_maximized)
                     });
-                    if fullscreen != suppressed {
-                        suppressed = fullscreen;
-                        let _ = app.emit(SUPPRESS_EVENT, Flag { value: suppressed });
+                    if fullscreen == suppressed {
+                        pending_change = 0;
+                    } else {
+                        pending_change += 1;
+                        if pending_change >= 2 {
+                            pending_change = 0;
+                            suppressed = fullscreen;
+                            let _ = app.emit(SUPPRESS_EVENT, Flag { value: suppressed });
+                        }
                     }
                 }
                 thread::sleep(if backend::POLLS_POINTER {

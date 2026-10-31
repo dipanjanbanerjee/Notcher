@@ -3,6 +3,7 @@ mod clipboard;
 mod db;
 mod island;
 mod media;
+mod netspeed;
 mod notes;
 mod notifications;
 mod platform;
@@ -198,6 +199,7 @@ pub fn run() {
             vitals::start(handle.clone());
             notifications::start(handle.clone());
             beat::start(handle.clone());
+            netspeed::start(handle.clone());
             platform::start_watcher(handle, mode, monitor);
             Ok(())
         })

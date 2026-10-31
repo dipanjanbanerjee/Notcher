@@ -2,100 +2,237 @@
   import Art from "../../components/Art.svelte";
   import Icon from "../../components/Icon.svelte";
   import { mediaCommand, type NowPlaying } from "../../lib/bridge";
+  import {
+    ALL_WIDGETS,
+    GRID_CELLS,
+    addWidget,
+    canAdd,
+    cellsUsed,
+    loadLayout,
+    moveWidget,
+    removeWidget,
+    saveLayout,
+    type WidgetId,
+  } from "../../lib/home-layout";
   import { clips } from "../../lib/stores/clips.svelte";
   import { focus } from "../../lib/stores/focus.svelte";
+  import { noteTitle, notes } from "../../lib/stores/notes.svelte";
   import { vitals } from "../../lib/stores/vitals.svelte";
   import { formatClock, formatDate, formatDuration, meridiem } from "../../lib/time";
 
-  let { track, clock, clock24h, ongo }: {
+  let {
+    track,
+    clock,
+    clock24h,
+    ongo,
+    editing = $bindable(false),
+  }: {
     track: NowPlaying | null;
     clock: Date;
     clock24h: boolean;
-    ongo: (tab: "clips" | "focus" | "vitals") => void;
+    ongo: (tab: "clips" | "focus" | "vitals" | "jot") => void;
+    editing?: boolean;
   } = $props();
+
+  let layout = $state<WidgetId[]>(loadLayout());
+  function change(next: WidgetId[]) {
+    layout = next;
+    saveLayout(next);
+  }
+  const addable = $derived(ALL_WIDGETS.filter((w) => canAdd(layout, w.id)));
+  const freeCells = $derived(GRID_CELLS - cellsUsed(layout));
 
   const lastClip = $derived(clips.items.find((c) => !c.pinned) ?? clips.items[0] ?? null);
   const memPct = $derived(vitals.current && vitals.current.memTotal > 0 ? (vitals.current.memUsed / vitals.current.memTotal) * 100 : 0);
+  const note = $derived(notes.items.find((n) => n.pinned) ?? notes.items[0] ?? null);
+  const noteLines = $derived(note ? note.body.split("\n").slice(1).join(" ").trim() : "");
+
+  const label = (id: WidgetId) => ALL_WIDGETS.find((w) => w.id === id)?.label ?? id;
+
+  $effect(() => {
+    if (layout.includes("note") && !notes.items.length) void notes.load();
+  });
 </script>
 
-<div class="home">
-  <section class="time">
-    <div class="clock">
-      <span class="big">{formatClock(clock, clock24h)}</span>
-      {#if !clock24h}<span class="ampm">{meridiem(clock)}</span>{/if}
-    </div>
-    <span class="muted">{formatDate(clock)}</span>
-  </section>
-
-  <section class="media tile">
-    {#if track}
-      <Art src={track.art} size={52} radius={12} />
-      <div class="meta">
-        <strong>{track.title}</strong>
-        <span class="muted">{track.artist}</span>
-      </div>
-      <div class="controls">
-        <button aria-label="Previous" onclick={() => mediaCommand("previous")}><Icon name="previous" size={16} /></button>
-        <button aria-label={track.playing ? "Pause" : "Play"} onclick={() => mediaCommand("play_pause")}>
-          <Icon name={track.playing ? "pause" : "play"} size={18} />
+<div class="home" class:editing>
+  {#each layout as id, i (id)}
+    <div class="cell" class:wide={id === "media"} class:bare={id === "clock"}>
+      {#if id === "clock"}
+        <section class="time">
+          <div class="clock">
+            <span class="big">{formatClock(clock, clock24h)}</span>
+            {#if !clock24h}<span class="ampm">{meridiem(clock)}</span>{/if}
+          </div>
+          <span class="muted">{formatDate(clock)}</span>
+        </section>
+      {:else if id === "media"}
+        <section class="media tile">
+          {#if track}
+            <Art src={track.art} size={52} radius={12} />
+            <div class="meta">
+              <strong>{track.title}</strong>
+              <span class="muted">{track.artist}</span>
+            </div>
+            <div class="controls">
+              <button aria-label="Previous" onclick={() => mediaCommand("previous")}><Icon name="previous" size={16} /></button>
+              <button aria-label={track.playing ? "Pause" : "Play"} onclick={() => mediaCommand("play_pause")}>
+                <Icon name={track.playing ? "pause" : "play"} size={18} />
+              </button>
+              <button aria-label="Next" onclick={() => mediaCommand("next")}><Icon name="next" size={16} /></button>
+            </div>
+          {:else}
+            <Art size={52} radius={12} />
+            <div class="meta"><strong>Nothing playing</strong><span class="muted">Music shows up here</span></div>
+          {/if}
+        </section>
+      {:else if id === "focus"}
+        <button class="tile small" onclick={() => ongo("focus")}>
+          <Icon name="timer" size={16} />
+          {#if focus.active}
+            <span class="value mono">{formatDuration(focus.remaining)}</span>
+            <span class="muted">{focus.label}{focus.running ? "" : " · paused"}</span>
+          {:else}
+            <span class="value">Focus</span>
+            <span class="muted">Start a session</span>
+          {/if}
         </button>
-        <button aria-label="Next" onclick={() => mediaCommand("next")}><Icon name="next" size={16} /></button>
-      </div>
-    {:else}
-      <Art size={52} radius={12} />
-      <div class="meta"><strong>Nothing playing</strong><span class="muted">Music shows up here</span></div>
-    {/if}
-  </section>
-
-  <button class="tile small" onclick={() => ongo("focus")}>
-    <Icon name="timer" size={16} />
-    {#if focus.active}
-      <span class="value mono">{formatDuration(focus.remaining)}</span>
-      <span class="muted">{focus.label}{focus.running ? "" : " · paused"}</span>
-    {:else}
-      <span class="value">Focus</span>
-      <span class="muted">Start a session</span>
-    {/if}
-  </button>
-
-  <button class="tile small" onclick={() => ongo("vitals")}>
-    <Icon name="pulse" size={16} />
-    {#if vitals.current}
-      <span class="value mono">CPU {Math.round(vitals.current.cpu)}%</span>
-      <span class="muted">Memory {Math.round(memPct)}%</span>
-    {:else}
-      <span class="value">System</span>
-      <span class="muted">Loading…</span>
-    {/if}
-  </button>
-
-  <button class="tile small clip" onclick={() => ongo("clips")}>
-    <Icon name="clipboard" size={16} />
-    {#if lastClip}
-      {#if lastClip.kind === "image" && lastClip.image}
-        <img src={lastClip.image} alt="" />
-      {:else}
-        <span class="snippet">{lastClip.text}</span>
+      {:else if id === "system"}
+        <button class="tile small" onclick={() => ongo("vitals")}>
+          <Icon name="pulse" size={16} />
+          {#if vitals.current}
+            <span class="value mono">CPU {Math.round(vitals.current.cpu)}%</span>
+            <span class="muted">Memory {Math.round(memPct)}%</span>
+          {:else}
+            <span class="value">System</span>
+            <span class="muted">Loading…</span>
+          {/if}
+        </button>
+      {:else if id === "clipboard"}
+        <button class="tile small clip" onclick={() => ongo("clips")}>
+          <Icon name="clipboard" size={16} />
+          {#if lastClip}
+            {#if lastClip.kind === "image" && lastClip.image}
+              <img src={lastClip.image} alt="" />
+            {:else}
+              <span class="snippet">{lastClip.text}</span>
+            {/if}
+          {:else}
+            <span class="muted">Copied items appear here</span>
+          {/if}
+        </button>
+      {:else if id === "note"}
+        <button class="tile small" onclick={() => ongo("jot")}>
+          <Icon name="pen" size={16} />
+          {#if note}
+            <span class="value one-line">{noteTitle(note.body)}</span>
+            {#if noteLines}<span class="snippet muted">{noteLines}</span>{/if}
+          {:else}
+            <span class="value">Notes</span>
+            <span class="muted">Write something down</span>
+          {/if}
+        </button>
       {/if}
-    {:else}
-      <span class="muted">Copied items appear here</span>
-    {/if}
-  </button>
+
+      {#if editing}
+        <div class="edit-bar">
+          <span>{label(id)}</span>
+          <button aria-label="Move {label(id)} earlier" disabled={i === 0} onclick={() => change(moveWidget(layout, id, -1))}>‹</button>
+          <button aria-label="Move {label(id)} later" disabled={i === layout.length - 1} onclick={() => change(moveWidget(layout, id, 1))}>›</button>
+          <button aria-label="Remove {label(id)}" onclick={() => change(removeWidget(layout, id))}>×</button>
+        </div>
+      {/if}
+    </div>
+  {/each}
+
+  {#if editing && freeCells > 0}
+    <div class="cell add" style:grid-column="span {Math.min(freeCells, 3)}">
+      {#if addable.length}
+        <span class="muted">Add a widget</span>
+        <div class="chips">
+          {#each addable as w (w.id)}
+            <button onclick={() => change(addWidget(layout, w.id))}><Icon name="plus" size={13} />{w.label}</button>
+          {/each}
+        </div>
+      {:else}
+        <span class="muted">Remove one to make room</span>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
   .home {
     height: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
     gap: 10px;
   }
+  .cell {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  .cell > :global(*:first-child) { flex: 1; min-width: 0; }
+  .cell.wide { grid-column: span 2; }
+  .editing .cell:not(.add) > :global(*:first-child) {
+    pointer-events: none;
+    opacity: 0.55;
+  }
+  .editing .cell:not(.add) {
+    border-radius: 16px;
+    outline: 1.5px dashed var(--hairline);
+    outline-offset: -1px;
+    animation: settle 240ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
+  }
+  @keyframes settle { from { transform: scale(0.97); } }
+
+  .edit-bar {
+    position: absolute;
+    inset: auto 8px 8px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--fg);
+  }
+  .edit-bar span { flex: 1; }
+  .edit-bar button,
+  .chips button {
+    min-width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 13px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+    transition: background 150ms, transform 150ms;
+  }
+  .edit-bar button:hover:not(:disabled),
+  .chips button:hover { background: var(--glow, var(--accent)); color: #fff; }
+  .edit-bar button:active,
+  .chips button:active { transform: scale(0.9); }
+  .edit-bar button:disabled { opacity: 0.35; cursor: default; }
+
+  .add {
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1.5px dashed var(--hairline);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; }
+
   .time {
-    grid-column: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
+    padding-left: 4px;
   }
   .clock { display: flex; align-items: baseline; gap: 4px; }
   .big { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -109,7 +246,6 @@
     min-width: 0;
   }
   .media {
-    grid-column: 2 / 4;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -136,12 +272,14 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+    overflow: hidden;
     transition: background 150ms, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .small:hover { background: var(--surface-2); }
   .small:active { transform: scale(0.97); }
   .small :global(svg) { color: var(--glow, var(--accent)); }
   .value { font-size: 16px; font-weight: 600; }
+  .one-line { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mono { font-variant-numeric: tabular-nums; }
   .snippet {
     font-size: 12.5px;

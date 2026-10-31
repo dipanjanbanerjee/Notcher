@@ -122,6 +122,16 @@
   </section>
 
   <section>
+    <h2>Taskbar</h2>
+    <Toggle
+      label="Internet speed on the taskbar"
+      hint="Upload and download speed next to the tray icons"
+      checked={settings.taskbarSpeed}
+      onchange={(v) => update("taskbarSpeed", v)}
+    />
+  </section>
+
+  <section>
     <h2>Notifications</h2>
     <Toggle
       label="Show notifications from other apps"

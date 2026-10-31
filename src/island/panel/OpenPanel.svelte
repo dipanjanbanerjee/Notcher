@@ -26,6 +26,11 @@
     { id: "vitals", label: "System", icon: "pulse" },
   ];
 
+  let editingHome = $state(false);
+  $effect(() => {
+    if (tab !== "home") editingHome = false;
+  });
+
   /** Direction of the last tab change, for the slide animation. */
   let direction = $state(1);
   function go(next: TabId) {
@@ -55,15 +60,28 @@
         </button>
       {/each}
     </div>
+    <div class="tools">
+    {#if tab === "home"}
+      <button
+        class="tool"
+        class:on={editingHome}
+        aria-label={editingHome ? "Done editing Home" : "Edit Home widgets"}
+        title={editingHome ? "Done" : "Edit widgets"}
+        onclick={(e) => { e.stopPropagation(); editingHome = !editingHome; }}
+      >
+        <Icon name={editingHome ? "check" : "pen"} size={16} />
+      </button>
+    {/if}
     <button class="gear" aria-label="Settings" onclick={(e) => { e.stopPropagation(); void openSettings(); }}>
       <Icon name="gear" size={17} />
     </button>
+    </div>
   </nav>
   <div class="body">
     {#key tab}
       <div class="page" style:--dir={direction}>
         {#if tab === "home"}
-          <HomeTab {track} {clock} {clock24h} ongo={go} />
+          <HomeTab {track} {clock} {clock24h} ongo={go} bind:editing={editingHome} />
         {:else if tab === "clips"}
           <ClipsTab />
         {:else if tab === "jot"}
@@ -91,12 +109,15 @@
   .tabs button:hover { color: var(--fg); }
   .tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--fg); }
   .tabs button[aria-selected="true"] :global(svg) { color: var(--glow, var(--accent)); }
-  .gear {
-    margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center;
+  .tools { margin-left: auto; display: flex; gap: 2px; }
+  .gear, .tool {
+    width: 32px; height: 32px; display: grid; place-items: center;
     border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer;
     transition: background 160ms, color 160ms, transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .gear:hover { background: var(--surface-2); color: var(--fg); transform: rotate(60deg); }
+  .gear:hover, .tool:hover { background: var(--surface-2); color: var(--fg); }
+  .gear:hover { transform: rotate(60deg); }
+  .tool.on { background: var(--surface-2); color: var(--glow, var(--accent)); }
   .body { position: relative; flex: 1; min-height: 0; }
   .page {
     position: absolute;
