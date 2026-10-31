@@ -17,7 +17,7 @@ use platform::PlatformMode;
 use tauri::{
     AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 /// Asks the island to open (or close, if already open).
 pub const TOGGLE_EVENT: &str = "island://toggle";
@@ -67,9 +67,22 @@ fn apply_shortcut<R: Runtime>(app: AppHandle<R>, shortcut: String) -> Result<(),
 }
 
 fn register_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &str) -> Result<(), String> {
+    // Check the text first, so a typo never removes the shortcut that works now.
+    let parsed: Shortcut = shortcut.parse().map_err(|e| format!("{e}"))?;
     let manager = app.global_shortcut();
+    if manager.is_registered(parsed) {
+        return Ok(());
+    }
     let _ = manager.unregister_all();
-    manager.register(shortcut).map_err(|e| e.to_string())
+    if let Err(err) = manager.register(parsed) {
+        // Usually another app owns that combination: keep the saved one working.
+        let saved = settings::shortcut(app);
+        if saved != shortcut {
+            let _ = manager.register(saved.as_str());
+        }
+        return Err(err.to_string());
+    }
+    Ok(())
 }
 
 pub(crate) fn show_settings<R: Runtime>(app: &AppHandle<R>) {

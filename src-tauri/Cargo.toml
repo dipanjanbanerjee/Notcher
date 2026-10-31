@@ -1,6 +1,6 @@
 [package]
 name = "notcher"
-version = "0.4.2"
+version = "0.4.3"
 description = "A fluid island at the top of your screen"
 authors = ["Dipanjan Banerjee"]
 license = "MIT"

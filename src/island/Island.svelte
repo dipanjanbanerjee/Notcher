@@ -28,24 +28,14 @@
   import { colorFromImage, toCss, type RGB } from "../lib/color";
   import {
     GEOMETRY,
-    REST_HOT_ZONE,
-    TUCKED_HOT_ZONE,
     TIMING,
     TUCKED,
+    inputRegion,
     transition,
     type IslandEvent,
     type IslandMode,
   } from "../lib/island-state";
-  import {
-    inflate,
-    islandBounds,
-    islandPath,
-    sameRect,
-    snapOut,
-    union,
-    type IslandGeometry,
-    type Rect,
-  } from "../lib/shape";
+  import { islandBounds, islandPath, sameRect, type IslandGeometry, type Rect } from "../lib/shape";
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
   import { SPRINGS, SpringGroup } from "../lib/spring";
   import { BeatFollower } from "../lib/beat";
@@ -122,13 +112,7 @@
   }
 
   function reportHitRegion(v: IslandGeometry) {
-    // Cover both where the island is and where it is going, so input never lags the shape.
-    let region: Rect = union(islandBounds(v, CENTER_X), islandBounds(targetOf(mode), CENTER_X));
-    if (mode === "rest") {
-      const zone = suppressed ? TUCKED_HOT_ZONE : REST_HOT_ZONE;
-      region = inflate(region, zone.sides, zone.bottom);
-    }
-    region = snapOut(region);
+    const region = inputRegion(v, mode, suppressed, CENTER_X);
     if (!sameRect(lastRegion, region)) {
       lastRegion = region;
       void setHitRegion(region);

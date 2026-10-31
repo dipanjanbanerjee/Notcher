@@ -91,6 +91,20 @@ pub fn to_window_logical(point: (f64, f64), window_origin: (i32, i32), scale: f6
     )
 }
 
+/// Whether the pointer moving onto or off the island should be reported.
+///
+/// `previous` is what was last reported (`None` before the first report). When the
+/// island grows under a pointer that is standing still (a pop-up appearing, or the tab
+/// coming back after a full-screen app), that is not the user reaching for it, so it
+/// only counts as hovering once the pointer moves. Leaving always counts.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn hover_changed(previous: Option<bool>, inside: bool, moved: bool) -> bool {
+    if previous == Some(inside) {
+        return false;
+    }
+    !(inside && !moved && previous == Some(false))
+}
+
 /// A top-level window as seen by the full-screen check, in physical screen pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StackedWindow {
@@ -294,5 +308,20 @@ mod tests {
             (50.0, 20.0)
         );
         assert_eq!(to_window_logical((5.0, 5.0), (0, 0), 0.0), (5.0, 5.0));
+    }
+
+    #[test]
+    fn hover_needs_a_moving_pointer_but_leaving_does_not() {
+        // Reaching for the island.
+        assert!(hover_changed(Some(false), true, true));
+        // The island grew under a still pointer: not a hover yet.
+        assert!(!hover_changed(Some(false), true, false));
+        // Leaving always counts, moving or not (the island shrank away).
+        assert!(hover_changed(Some(true), false, false));
+        assert!(hover_changed(Some(true), false, true));
+        // Nothing changed.
+        assert!(!hover_changed(Some(true), true, true));
+        // First report after start or a move to another screen.
+        assert!(hover_changed(None, true, false));
     }
 }

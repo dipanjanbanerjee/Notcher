@@ -24,12 +24,20 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>) {
             let mut last_hash = read(&mut clipboard).map(|c| hash(&c));
             loop {
                 std::thread::sleep(POLL);
-                if !change.changed() || platform::is_private() {
+                if !change.changed() {
+                    continue;
+                }
+                if platform::is_private() {
+                    change.done();
                     continue;
                 }
                 let Some(content) = read(&mut clipboard) else {
+                    // The app that just copied may still hold the clipboard open, so a
+                    // failed read is tried again on the next few polls.
+                    change.failed();
                     continue;
                 };
+                change.done();
                 let h = hash(&content);
                 if last_hash.as_deref() != Some(h.as_str()) {
                     last_hash = Some(h);
@@ -62,19 +70,44 @@ fn hash(content: &Content) -> String {
     }
 }
 
+/// Retries for a change whose content could not be read yet (about a second).
+#[cfg_attr(not(windows), allow(dead_code))]
+const READ_RETRIES: u8 = 3;
+
 #[derive(Default)]
 struct ChangeDetector {
     #[cfg(windows)]
     last: u32,
+    /// A change still waiting to be read, with the number of failed reads so far.
+    #[cfg(windows)]
+    pending: Option<u8>,
 }
 
 impl ChangeDetector {
     #[cfg(windows)]
     fn changed(&mut self) -> bool {
         let seq = unsafe { windows::Win32::System::DataExchange::GetClipboardSequenceNumber() };
-        let changed = seq != self.last;
-        self.last = seq;
-        changed
+        if seq != self.last {
+            self.last = seq;
+            self.pending = Some(0);
+        }
+        self.pending.is_some()
+    }
+
+    /// The latest change was handled (or is not ours to read).
+    #[cfg(windows)]
+    fn done(&mut self) {
+        self.pending = None;
+    }
+
+    /// Reading failed; keep the change for a few more polls, then give up (files and
+    /// other formats Notcher does not keep can never be read).
+    #[cfg(windows)]
+    fn failed(&mut self) {
+        self.pending = match self.pending {
+            Some(tries) if tries + 1 < READ_RETRIES => Some(tries + 1),
+            _ => None,
+        };
     }
 
     /// Without a cheap change signal, every poll reads and compares.
@@ -82,6 +115,10 @@ impl ChangeDetector {
     fn changed(&mut self) -> bool {
         true
     }
+    #[cfg(not(windows))]
+    fn done(&mut self) {}
+    #[cfg(not(windows))]
+    fn failed(&mut self) {}
 }
 
 #[cfg(windows)]
