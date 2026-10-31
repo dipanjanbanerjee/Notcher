@@ -19,6 +19,7 @@
     onAppNotification,
     onDropReceived,
     onAudioLevel,
+    onCloseIsland,
     onScreenActive,
     onSuppressed,
     onToggle,
@@ -437,6 +438,13 @@
       ),
     );
     unlisten.push(onScreenActive(({ value }) => (userActive = value)));
+    unlisten.push(
+      onCloseIsland(() => {
+        cancel("intent", "leave");
+        hovered = false;
+        dispatch({ type: "escape" });
+      }),
+    );
 
     // Tick right after each new second so the clock's seconds change evenly.
     let tick: ReturnType<typeof setTimeout>;

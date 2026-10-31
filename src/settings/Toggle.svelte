@@ -34,10 +34,13 @@
     width: 40px;
     height: 24px;
     border-radius: 12px;
-    background: var(--surface-2);
+    /* The brand gradient sits underneath and the "off" colour is a thick inner
+       shadow over it, so turning on fills in smoothly instead of snapping. */
+    background: var(--brand, var(--accent));
+    box-shadow: inset 0 0 0 12px color-mix(in srgb, var(--fg) 13%, var(--window-bg, var(--bg)));
     position: relative;
     cursor: pointer;
-    transition: background 200ms;
+    transition: box-shadow 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
   input::after {
     content: "";
@@ -51,7 +54,7 @@
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
     transition: transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
   }
-  input:checked { background: var(--accent); }
+  input:checked { box-shadow: inset 0 0 0 0 transparent; }
   input:checked::after { transform: translateX(16px); }
   input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>

@@ -1,0 +1,48 @@
+name: Release
+
+# Push a tag like v1.0.0 (matching the version in tauri.conf.json) to build the
+# installers and publish them as a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Check the tag matches the app version
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version"
+            exit 1
+          fi
+      - name: Build installers
+        run: npx tauri build --bundles nsis,msi
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bundle=src-tauri/target/release/bundle
+          # A copy with a fixed name, so "latest/download/Notcher-Setup.exe" always works.
+          cp "$bundle"/nsis/*-setup.exe Notcher-Setup.exe
+          notes="docs/releases/$GITHUB_REF_NAME.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
+          gh release create "$GITHUB_REF_NAME" --title "Notcher $GITHUB_REF_NAME" "$@" \
+            Notcher-Setup.exe "$bundle"/nsis/*.exe "$bundle"/msi/*.msi

@@ -86,7 +86,12 @@ fn register_shortcut<R: Runtime>(app: &AppHandle<R>, shortcut: &str) -> Result<(
     Ok(())
 }
 
+/// Asks the island to fold away (it would otherwise sit on top of a new window).
+pub const CLOSE_EVENT: &str = "island://close";
+
 pub(crate) fn show_settings<R: Runtime>(app: &AppHandle<R>) {
+    // The island is always on top, so an open panel would cover the Settings window.
+    let _ = app.emit_to("island", CLOSE_EVENT, ());
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.unminimize();
         let _ = window.show();

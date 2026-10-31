@@ -40,6 +40,8 @@ async function safeListen<T>(event: string, handler: (payload: T) => void): Prom
 export const setHitRegion = (region: Rect) => safeInvoke("set_hit_region", { region });
 export const focusIsland = () => safeInvoke("focus_island");
 export const openSettings = () => safeInvoke("open_settings");
+/** Settings (or another window) is opening: fold the island away so it doesn't cover it. */
+export const onCloseIsland = (h: () => void) => safeListen("island://close", h);
 export const nowPlaying = () => safeInvoke<NowPlaying | null>("now_playing");
 export const mediaCommand = (action: MediaAction) => safeInvoke("media_command", { action });
 export const applyShortcut = async (shortcut: string): Promise<string | null> => {

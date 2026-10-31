@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import { flip } from "svelte/animate";
   import Art from "../../components/Art.svelte";
-  import Icon from "../../components/Icon.svelte";
+  import Icon, { type IconName } from "../../components/Icon.svelte";
   import { mediaCommand, type NowPlaying } from "../../lib/bridge";
   import {
     ALL_WIDGETS,
@@ -22,6 +22,8 @@
   import { noteTitle, notes } from "../../lib/stores/notes.svelte";
   import { vitals } from "../../lib/stores/vitals.svelte";
   import { formatSpan, screen } from "../../lib/stores/screentime.svelte";
+  import { weather } from "../../lib/stores/weather.svelte";
+  import { formatTemp, skyIcon, skyLabel } from "../../lib/weather";
   import { formatClock, formatDate, formatDuration, meridiem } from "../../lib/time";
 
   let {
@@ -34,7 +36,7 @@
     track: NowPlaying | null;
     clock: Date;
     clock24h: boolean;
-    ongo: (tab: "clips" | "focus" | "vitals" | "jot") => void;
+    ongo: (tab: "clips" | "focus" | "vitals" | "jot" | "tools") => void;
     editing?: boolean;
   } = $props();
 
@@ -58,6 +60,9 @@
   });
   $effect(() => {
     if (layout.includes("screen")) return screen.watch();
+  });
+  $effect(() => {
+    if (layout.includes("weather")) return weather.watch();
   });
   const topApp = $derived(screen.today?.apps[0] ?? null);
 
@@ -223,6 +228,17 @@
           {:else}
             <span class="value">Screen time</span>
             <span class="muted">Loading…</span>
+          {/if}
+        </button>
+      {:else if id === "weather"}
+        <button class="tile small" onclick={() => ongo("tools")}>
+          <Icon name={weather.now ? (skyIcon(weather.now.code, weather.now.isDay) as IconName) : "sun"} size={16} />
+          {#if weather.now}
+            <span class="value mono">{formatTemp(weather.now.temp, weather.unit)}</span>
+            <span class="muted one-line">{weather.now.place} · {skyLabel(weather.now.code)}</span>
+          {:else}
+            <span class="value">Weather</span>
+            <span class="muted one-line">{weather.error ?? "Loading…"}</span>
           {/if}
         </button>
       {:else if id === "note"}

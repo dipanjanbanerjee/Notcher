@@ -1,6 +1,6 @@
 <script lang="ts" module>
-  export type TabId = "home" | "clips" | "jot" | "focus" | "vitals" | "drop";
-  export const TAB_IDS: readonly TabId[] = ["home", "clips", "jot", "focus", "vitals", "drop"];
+  export type TabId = "home" | "clips" | "jot" | "focus" | "tools" | "vitals" | "drop";
+  export const TAB_IDS: readonly TabId[] = ["home", "clips", "jot", "focus", "tools", "vitals", "drop"];
 </script>
 
 <script lang="ts">
@@ -11,6 +11,7 @@
   import FocusTab from "./FocusTab.svelte";
   import HomeTab from "./HomeTab.svelte";
   import JotTab from "./JotTab.svelte";
+  import ToolsTab from "./ToolsTab.svelte";
   import VitalsTab from "./VitalsTab.svelte";
 
   let { track, clock, clock24h, tab = $bindable(), dragging = false }: {
@@ -27,6 +28,7 @@
     { id: "clips", label: "Clipboard", icon: "clipboard" },
     { id: "jot", label: "Notes", icon: "pen" },
     { id: "focus", label: "Focus", icon: "timer" },
+    { id: "tools", label: "Tools", icon: "tools" },
     { id: "vitals", label: "System", icon: "pulse" },
     { id: "drop", label: "Drop", icon: "beam" },
   ];
@@ -45,8 +47,8 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    // Ctrl+1…6 switches tabs while the island is open.
-    if ((e.ctrlKey || e.metaKey) && /^[1-6]$/.test(e.key)) {
+    // Ctrl+1…7 switches tabs while the island is open.
+    if ((e.ctrlKey || e.metaKey) && /^[1-7]$/.test(e.key)) {
       e.preventDefault();
       go(TABS[Number(e.key) - 1].id);
     }
@@ -56,12 +58,12 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="panel">
-  <nav aria-label="Tools">
+  <nav aria-label="Sections">
     <div class="tabs" role="tablist">
       {#each TABS as t (t.id)}
-        <button role="tab" aria-selected={tab === t.id} title={t.label} onclick={(e) => { e.stopPropagation(); go(t.id); }}>
+        <button role="tab" aria-selected={tab === t.id} aria-label={t.label} title={t.label} onclick={(e) => { e.stopPropagation(); go(t.id); }}>
           <Icon name={t.icon} size={15} />
-          <span>{t.label}</span>
+          <span class="label"><span>{t.label}</span></span>
         </button>
       {/each}
     </div>
@@ -93,6 +95,8 @@
           <JotTab />
         {:else if tab === "focus"}
           <FocusTab />
+        {:else if tab === "tools"}
+          <ToolsTab />
         {:else if tab === "drop"}
           <DropTab {dragging} />
         {:else}
@@ -108,14 +112,25 @@
   nav { display: flex; align-items: center; gap: 8px; }
   .tabs { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--surface-1); }
   .tabs button {
-    display: inline-flex; align-items: center; gap: 6px;
-    height: 30px; padding: 0 10px; border: 0; border-radius: 9px;
+    display: inline-flex; align-items: center;
+    height: 30px; padding: 0 8px; border: 0; border-radius: 9px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer;
-    transition: background 180ms, color 180ms;
+    transition: background 280ms cubic-bezier(0.2, 0.9, 0.25, 1), color 200ms, padding 320ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
-  .tabs button:hover { color: var(--fg); }
-  .tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--fg); }
+  .tabs button:hover { color: var(--fg); background: color-mix(in srgb, var(--surface-2) 50%, transparent); }
+  .tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--fg); padding: 0 11px 0 9px; }
   .tabs button[aria-selected="true"] :global(svg) { color: var(--glow, var(--accent)); }
+  /* Only the open tab shows its name; the label slides open instead of popping in. */
+  .label {
+    display: grid; grid-template-columns: 0fr; opacity: 0;
+    transition: grid-template-columns 320ms cubic-bezier(0.2, 0.9, 0.25, 1), opacity 200ms;
+  }
+  .label > span { overflow: hidden; white-space: nowrap; padding-left: 0; transition: padding 320ms cubic-bezier(0.2, 0.9, 0.25, 1); }
+  [aria-selected="true"] .label { grid-template-columns: 1fr; opacity: 1; transition-delay: 0ms, 80ms; }
+  [aria-selected="true"] .label > span { padding-left: 6px; }
+  @media (prefers-reduced-motion: reduce) {
+    .tabs button, .label, .label > span { transition: none; }
+  }
   .tools { margin-left: auto; display: flex; gap: 2px; }
   .gear, .tool {
     width: 32px; height: 32px; display: grid; place-items: center;

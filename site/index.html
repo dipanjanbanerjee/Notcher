@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notcher · a living island for Windows</title>
+  <meta name="description" content="Notcher puts a fluid island at the top of your Windows screen: music, clipboard history, notes, timers, weather, unit conversion and phone file drops, one hover away. Free and open source." />
+  <meta name="theme-color" content="#09080f" />
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <meta property="og:title" content="Notcher · a living island for Windows" />
+  <meta property="og:description" content="Music, clipboard, notes, timers, weather and more, one hover away. Free for Windows 10 and 11." />
+  <meta property="og:image" content="https://dipanjanbanerjee.github.io/notcher/og.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <!-- The island, hanging from the top of the page like it does on your desktop. -->
+  <div class="island-wrap" aria-hidden="true">
+    <div class="island" id="island">
+      <div class="scene" data-scene="rest">
+        <span class="rest-date">Sat 31</span>
+        <span class="rest-time" id="clock">6:01</span>
+      </div>
+      <div class="scene" data-scene="music">
+        <span class="art"></span>
+        <span class="meta"><b>Midnight Static</b><small>Glass Harbor</small></span>
+        <span class="eq"><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="scene" data-scene="weather">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M9 3.5v1.3M3.8 8.7h1.3M5.3 5l.9.9M12.7 5l-.9.9M6 11a3.2 3.2 0 0 1 5.6-3.2M9.5 19.5h8a3.3 3.3 0 0 0 .4-6.6 4.6 4.6 0 0 0-8.7-.9 3.8 3.8 0 0 0 .3 7.5z"/></svg>
+        <span class="meta"><b>28° · Partly cloudy</b><small>Kolkata</small></span>
+      </div>
+      <div class="scene" data-scene="water">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z"/></svg>
+        <span class="meta"><b>Time for some water</b><small>An hour at the PC</small></span>
+      </div>
+      <div class="scene" data-scene="copy">
+        <svg viewBox="0 0 24 24" class="ico"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        <span class="meta"><b>Copied</b><small>Saved to clipboard history</small></span>
+      </div>
+    </div>
+  </div>
+
+  <header class="nav">
+    <a class="brand" href="#top"><img src="logo.svg" alt="" width="30" height="30" />Notcher</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/dipanjanbanerjee/notcher" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <p class="eyebrow"><span class="dot"></span><span>Version <span data-version>1.0.0</span> is out</span></p>
+      <h1>A <em>living</em> island<br />for the top of your screen</h1>
+      <p class="lede">Notcher gives Windows a soft, fluid notch that holds your music, clipboard, notes, timers, weather and more. Hover to open it. Move away and it melts back.</p>
+      <div class="cta">
+        <a class="button primary" data-download href="https://github.com/dipanjanbanerjee/notcher/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z" /></svg>
+          Download for Windows
+        </a>
+        <a class="button ghost" href="https://github.com/dipanjanbanerjee/notcher" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a9.5 9.5 0 0 0-3 18.5c.5.1.7-.2.7-.5v-1.7c-2.7.6-3.2-1.2-3.2-1.2-.5-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.1-.2-4.4-1.1-4.4-4.8 0-1 .4-1.9 1-2.6-.1-.3-.4-1.2.1-2.5 0 0 .8-.3 2.6 1a9 9 0 0 1 4.8 0c1.8-1.3 2.6-1 2.6-1 .5 1.3.2 2.2.1 2.5.6.7 1 1.6 1 2.6 0 3.7-2.3 4.6-4.4 4.8.3.3.6.9.6 1.8v2.7c0 .3.2.6.7.5A9.5 9.5 0 0 0 12 2.5z" /></svg>
+          Source on GitHub
+        </a>
+      </div>
+      <p class="fine">Free and open source · Windows 10 and 11 · No account, no ads</p>
+    </section>
+
+    <section class="showcase" aria-label="A look inside">
+      <div class="tabs" role="tablist" aria-label="Panel tabs">
+        <button role="tab" aria-selected="true" data-shot="home">Home</button>
+        <button role="tab" aria-selected="false" data-shot="tools">Tools</button>
+        <button role="tab" aria-selected="false" data-shot="clips">Clipboard</button>
+        <button role="tab" aria-selected="false" data-shot="focus">Focus</button>
+        <button role="tab" aria-selected="false" data-shot="vitals">System</button>
+      </div>
+      <div class="stage">
+        <div class="desk" aria-hidden="true"></div>
+        <figure class="shots">
+          <img data-shot="home" class="on" src="shots/home.webp" width="682" height="354" alt="The Home tab: clock, music, screen time, focus timer, system stats, last copy and a note" />
+          <img data-shot="tools" src="shots/tools.webp" width="682" height="354" alt="The Tools tab: a unit converter next to the weather and a five-day outlook" loading="lazy" />
+          <img data-shot="clips" src="shots/clips.webp" width="682" height="354" alt="Clipboard history with search and pinning" loading="lazy" />
+          <img data-shot="focus" src="shots/focus.webp" width="682" height="354" alt="Focus timer with Pomodoro, countdown and stopwatch, plus the water reminder" loading="lazy" />
+          <img data-shot="vitals" src="shots/vitals.webp" width="682" height="354" alt="System tab: CPU, memory, disk, battery and today's screen time" loading="lazy" />
+        </figure>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <h2>Everything small, close at hand</h2>
+      <p class="sub">Seven little tabs that open with a hover or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd>.</p>
+      <div class="grid">
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M9 17.5V6.2l10-2.2v11.3M9 17.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zm10-2.2a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" /></svg>
+          <h3>Now playing</h3>
+          <p>Cover art, controls and a glow that breathes with the beat, from Spotify, your browser or any player Windows knows.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M9 4.5h6v2.5H9zM9 5.5H6.5v14h11v-14H15M9 11h6M9 14.5h4" /></svg>
+          <h3>Clipboard history</h3>
+          <p>The last 200 things you copied, text and images, with search and pins. Passwords are never kept.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M6.5 3.5h11a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19V5a1.5 1.5 0 0 1 1.5-1.5zM8.5 7.5h7v2.5h-7zM8.8 13.5h.01M12 13.5h.01M15.2 13.5h.01M8.8 17h.01M12 17h.01M15.2 17h.01" /></svg>
+          <h3>Convert anything</h3>
+          <p>Length, weight, temperature, data, time and live currency rates, in a converter that copies with one click.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M9 3.5v1.3M3.8 8.7h1.3M5.3 5l.9.9M12.7 5l-.9.9M6 11a3.2 3.2 0 0 1 5.6-3.2M9.5 19.5h8a3.3 3.3 0 0 0 .4-6.6 4.6 4.6 0 0 0-8.7-.9 3.8 3.8 0 0 0 .3 7.5z" /></svg>
+          <h3>Weather</h3>
+          <p>Right now and the next five days, for where you are or any city you type. Also as a Home widget.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M12 21a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12 9.5v4l2.5 1.5M9.5 3h5" /></svg>
+          <h3>Focus and water</h3>
+          <p>Pomodoro, timer and stopwatch that stay visible on the island, plus a gentle nudge to drink some water.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M3.5 5h17v11h-17zM9 20h6M12 16v4" /></svg>
+          <h3>Screen time</h3>
+          <p>How long you've been at your PC today and in which apps. Time away doesn't count, and it all stays on your PC.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M3.5 7.5h7v12h-7zM6 17h2M13.5 4.5h7v10h-7zM16 12.5h2M10.5 11.5h3M12 10l1.5 1.5L12 13" /></svg>
+          <h3>Phone drop</h3>
+          <p>Scan a QR code and send photos and files between your phone and PC over your own Wi-Fi.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M6.5 16.5v-5a5.5 5.5 0 0 1 11 0v5l1.5 2h-14zM10 20.5a2 2 0 0 0 4 0" /></svg>
+          <h3>Notifications</h3>
+          <p>WhatsApp, Telegram and Mail messages slide out of the island, with or without the text.</p>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24"><path d="M12 19V5M6.5 10.5 12 5l5.5 5.5" /></svg>
+          <h3>Speed on the taskbar</h3>
+          <p>Upload, download and today's usage beside your tray icons. Nudge it left or right until it sits just so.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="feel">
+      <div class="feel-copy">
+        <h2>Made to feel soft</h2>
+        <p>Every movement in Notcher runs on springs, so it eases in and settles like something physical. Change your mind halfway and it turns around smoothly instead of jumping.</p>
+        <ul>
+          <li><b>Gets out of the way.</b> Full-screen video or a maximized app? The island tucks into a thin tab.</li>
+          <li><b>Clicks pass through.</b> Only the island takes the mouse. Everything around it reaches your apps.</li>
+          <li><b>Four moods.</b> Obsidian, Daylight, Neon and Paper themes, with a glow tinted by your album art.</li>
+        </ul>
+      </div>
+      <div class="spring" aria-hidden="true">
+        <div class="pill" id="pill">
+          <div class="pill-in">
+            <span class="art"></span>
+            <span class="meta"><b>Midnight Static</b><small>Glass Harbor</small></span>
+            <span class="eq"><i></i><i></i><i></i><i></i></span>
+          </div>
+        </div>
+        <svg class="curve" viewBox="0 0 300 120"><path id="curve" d="" /></svg>
+        <span class="caption">Hover me · the line is the spring the app uses</span>
+      </div>
+    </section>
+
+    <section class="download" id="download">
+      <img src="logo.svg" alt="" width="84" height="84" />
+      <h2>Get Notcher</h2>
+      <p>One small installer. No account, nothing to set up.</p>
+      <a class="button primary big" data-download href="https://github.com/dipanjanbanerjee/notcher/releases/latest">Download for Windows</a>
+      <p class="fine"><span data-release-note>Latest release</span> · <a href="https://github.com/dipanjanbanerjee/notcher/releases">All releases</a></p>
+      <ol class="steps">
+        <li><b>Run the installer.</b> Windows may say it doesn't recognise the app yet. Choose <i>More info</i>, then <i>Run anyway</i>.</li>
+        <li><b>Move your mouse to the top of the screen.</b> The island opens. Press <kbd>Ctrl</kbd>+<kbd>1</kbd> to <kbd>7</kbd> to switch tabs.</li>
+        <li><b>Make it yours.</b> Right-click the tray icon for Settings: themes, the taskbar meter, water reminders and more.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>
+    <span>MIT licensed · © 2026 Dipanjan Banerjee</span>
+    <span><a href="https://github.com/dipanjanbanerjee/notcher">GitHub</a> · <a href="https://github.com/dipanjanbanerjee/notcher/issues">Report a problem</a></span>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
