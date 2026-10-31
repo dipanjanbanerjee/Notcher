@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Art from "../components/Art.svelte";
   import Equalizer from "../components/Equalizer.svelte";
   import Icon from "../components/Icon.svelte";
@@ -211,6 +211,12 @@
 
   /** Files are being dragged over the island. */
   let dragging = $state(false);
+
+  // The QR code is ready whenever the Drop tab is open.
+  $effect(() => {
+    const showing = mode === "open" && tab === "drop";
+    untrack(() => (showing ? drop.ensure() : drop.release()));
+  });
 
   /** Dragging files onto the island opens the Drop tab; dropping shares them with the phone. */
   function onFileDrag(type: "enter" | "over" | "leave" | "drop", paths: string[] = []) {

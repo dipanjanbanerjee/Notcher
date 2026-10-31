@@ -23,6 +23,14 @@ pub fn flag<R: Runtime>(app: &AppHandle<R>, key: &str, default: bool) -> bool {
     get(app, key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
 
+/// A text setting written by the web UI.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn text<R: Runtime>(app: &AppHandle<R>, key: &str, default: &str) -> String {
+    get(app, key)
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_else(|| default.to_owned())
+}
+
 /// Keep a history of copied text and images.
 pub fn clipboard_history<R: Runtime>(app: &AppHandle<R>) -> bool {
     get(app, "clipboardHistory")

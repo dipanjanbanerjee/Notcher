@@ -5,6 +5,7 @@ import {
   canAdd,
   cellsUsed,
   moveWidget,
+  placeWidget,
   removeWidget,
   sanitizeLayout,
 } from "./home-layout";
@@ -32,5 +33,12 @@ describe("home layout", () => {
     expect(sanitizeLayout(["media", "media", "bogus", "note"])).toEqual(["media", "note"]);
     expect(sanitizeLayout("nope")).toEqual(DEFAULT_LAYOUT);
     expect(cellsUsed(sanitizeLayout(["clock", "media", "focus", "system", "clipboard", "note"]))).toBe(6);
+  });
+  it("drag places a widget at a new index", () => {
+    const l = ["clock", "media", "focus", "system"] as const;
+    expect(placeWidget([...l], "focus", 0)).toEqual(["focus", "clock", "media", "system"]);
+    expect(placeWidget([...l], "clock", 3)).toEqual(["media", "focus", "system", "clock"]);
+    expect(placeWidget([...l], "clock", 99)).toEqual(["media", "focus", "system", "clock"]);
+    expect(placeWidget([...l], "clock", 0)).toEqual([...l]);
   });
 });

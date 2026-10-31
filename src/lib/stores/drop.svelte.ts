@@ -17,6 +17,20 @@ const EMPTY: DropState = { active: false, url: null, qr: null, folder: "", recei
 class DropStore {
   state = $state<DropState>({ ...EMPTY });
   starting = $state(false);
+  /** The user pressed Stop, so don't start again until they leave the Drop tab. */
+  private held = false;
+
+  /** Starts sharing when the Drop tab is showing, so the QR code is simply there. */
+  ensure() {
+    if (this.held || this.state.active || this.starting || this.state.error) return;
+    void this.start();
+  }
+
+  /** The Drop tab is no longer showing: the next visit starts sharing again. */
+  release() {
+    this.held = false;
+    if (this.state.error) this.state.error = null;
+  }
 
   async refresh() {
     const s = await dropState();
@@ -35,6 +49,7 @@ class DropStore {
   }
 
   async stop() {
+    this.held = true;
     if (!inTauri) {
       this.state = { ...this.state, active: false, url: null, qr: null };
       return;

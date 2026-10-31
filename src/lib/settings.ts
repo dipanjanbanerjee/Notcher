@@ -31,6 +31,12 @@ export interface Settings {
   beatGlow: boolean;
   /** Internet speed meter on the taskbar, next to the tray icons. */
   taskbarSpeed: boolean;
+  /** Text size of the taskbar meter. */
+  taskbarSpeedSize: "small" | "medium" | "large";
+  /** Which end of the taskbar the meter sits on. */
+  taskbarSpeedPosition: "left" | "right";
+  /** Show how much data was used today next to the speeds. */
+  taskbarSpeedToday: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -47,6 +53,9 @@ export const DEFAULT_SETTINGS: Settings = {
   tuckOnMaximized: true,
   beatGlow: true,
   taskbarSpeed: true,
+  taskbarSpeedSize: "medium",
+  taskbarSpeedPosition: "right",
+  taskbarSpeedToday: true,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [
@@ -68,6 +77,8 @@ export function sanitize(raw: Record<string, unknown>): Settings {
     }
   }
   if (!THEMES.some((t) => t.id === out.theme)) out.theme = DEFAULT_SETTINGS.theme;
+  if (!["small", "medium", "large"].includes(out.taskbarSpeedSize)) out.taskbarSpeedSize = "medium";
+  if (out.taskbarSpeedPosition !== "left") out.taskbarSpeedPosition = "right";
   return out;
 }
 
