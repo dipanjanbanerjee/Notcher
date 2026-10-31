@@ -1,32 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1c1b26"/>
-      <stop offset="1" stop-color="#0a0a0e"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b6cff"/>
+      <stop offset="0.55" stop-color="#5a7cff"/>
+      <stop offset="1" stop-color="#14d6c0"/>
     </linearGradient>
-    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#8b7bff"/>
-      <stop offset="1" stop-color="#00e0c0"/>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="28"/>
-    </filter>
+    <linearGradient id="dot" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9a8ff"/>
+      <stop offset="1" stop-color="#3ff0d8"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="40" y="40" width="944" height="944" rx="230"/>
+    </clipPath>
   </defs>
-  <rect x="64" y="64" width="896" height="896" rx="216" fill="url(#bg)"/>
-  <rect x="64.5" y="64.5" width="895" height="895" rx="215.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
-  <!-- the island: hangs from the top edge with flared shoulders -->
-  <g transform="translate(512 0)">
-    <path d="M -250 210 L 250 210 Q 220 210 220 250 L 220 330 C 220 382 194 408 142 408 L -142 408 C -194 408 -220 382 -220 330 L -220 250 Q -220 210 -250 210 Z"
-          fill="none" stroke="url(#glow)" stroke-width="22" filter="url(#blur)" opacity="0.9"/>
-    <path d="M -250 210 L 250 210 Q 220 210 220 250 L 220 330 C 220 382 194 408 142 408 L -142 408 C -194 408 -220 382 -220 330 L -220 250 Q -220 210 -250 210 Z"
-          fill="#000"/>
-    <path d="M -250 210 L 250 210 Q 220 210 220 250 L 220 330 C 220 382 194 408 142 408 L -142 408 C -194 408 -220 382 -220 330 L -220 250 Q -220 210 -250 210 Z"
-          fill="none" stroke="url(#glow)" stroke-width="6" opacity="0.9"/>
-    <circle cx="-138" cy="309" r="42" fill="url(#glow)"/>
-    <rect x="86" y="292" width="16" height="44" rx="8" fill="#00e0c0"/>
-    <rect x="114" y="270" width="16" height="66" rx="8" fill="#00e0c0" opacity="0.85"/>
-    <rect x="142" y="300" width="16" height="36" rx="8" fill="#00e0c0" opacity="0.7"/>
+  <g clip-path="url(#tile)">
+    <rect x="40" y="40" width="944" height="944" fill="url(#bg)"/>
+    <rect x="40" y="40" width="944" height="944" fill="url(#shine)"/>
+    <!-- The island: hangs from the top edge with flared shoulders. -->
+    <path d="M 132 40 L 892 40 Q 812 40 812 120 L 812 380 C 812 476 760 528 664 528 L 360 528 C 264 528 212 476 212 380 L 212 120 Q 212 40 132 40 Z" fill="#06060a"/>
+    <!-- What it shows: a glowing dot and a little equalizer. -->
+    <circle cx="372" cy="330" r="74" fill="url(#dot)"/>
+    <rect x="560" y="296" width="44" height="104" rx="22" fill="#3ff0d8"/>
+    <rect x="632" y="236" width="44" height="164" rx="22" fill="#3ff0d8"/>
+    <rect x="704" y="316" width="44" height="84" rx="22" fill="#3ff0d8"/>
   </g>
-  <!-- ambient light below -->
-  <ellipse cx="512" cy="700" rx="300" ry="120" fill="url(#glow)" opacity="0.10" filter="url(#blur)"/>
 </svg>

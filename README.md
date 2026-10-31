@@ -10,17 +10,19 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
 - **Click-through:** only the island itself takes the mouse, and everything around it clicks straight through to your apps.
 - **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Windows Media Player…), with play/pause, next and previous. A short *live* activity appears when the track changes.
 - **Open panel with six tabs** (`Ctrl+1` to `Ctrl+6`):
-  - **Home:** clock, music controls, and quick looks at your timer, system, last copy and latest note. Press the pen button, then drag widgets to rearrange them, or remove and add them.
+  - **Home:** clock, music controls, today's screen time, and quick looks at your timer, system, last copy and latest note. Press the pen button, then drag widgets to rearrange them, or remove and add them.
   - **Clipboard:** the last 200 things you copied, text and images, with search and pinning. Click to copy again. Passwords from password managers are never saved.
   - **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
-  - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island, and a water reminder can nudge you.
-  - **System:** CPU and memory over the last minute, disk and battery.
+  - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island.
+  - **System:** CPU and memory over the last minute, disk, battery, and today's screen time with the apps you used most.
   - **Drop:** Notcher Drop, see below.
 - **Notcher Drop:** move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and save files the PC shares. Drag files onto the island to share them, even when it's tucked away. The Drop tab shows which phone is connected, live transfer speed and photo previews. It works over your own Wi-Fi with a one-time key, nothing goes through the internet, and it stops by itself after 10 idle minutes. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
 - **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
+- **Screen time:** how long you've been at your PC today and in which apps. Time away, a locked PC and the screen saver don't count; a full-screen video does. Only app names and totals are kept, on your PC.
+- **Water reminder:** a gentle pop-up after every hour at the PC (or 30 min to 2 hours, or off, in Settings › Wellbeing). Time away doesn't count, and it waits until a full-screen video or game ends.
 - **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
 - **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
-- **Internet speed on the taskbar:** upload and download speed, plus how much data you've used today. In Settings › Taskbar you can pick small, medium or large text, put it on the left or right of the taskbar, or turn it off.
+- **Internet speed on the taskbar:** upload and download speed, then how much data you've used today. In Settings › Taskbar you can pick small, medium or large text, put it on the left or right of the taskbar, or turn it off.
 - **Multi-monitor:** the island follows the screen your cursor is on.
 - **Shortcut:** `Ctrl+Alt+Space` opens and closes the island from anywhere (you can change it).
 - **Themes:** Obsidian, Daylight, Neon, Paper.

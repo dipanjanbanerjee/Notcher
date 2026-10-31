@@ -3,6 +3,8 @@
   import type { FocusKind } from "../../lib/focus";
   import { focus } from "../../lib/stores/focus.svelte";
   import { formatDuration } from "../../lib/time";
+  import { notifySettingsChanged } from "../../lib/bridge";
+  import { WATER_CHOICES, saveSetting } from "../../lib/settings";
 
   const KINDS: { id: FocusKind; label: string }[] = [
     { id: "pomodoro", label: "Pomodoro" },
@@ -10,7 +12,11 @@
     { id: "stopwatch", label: "Stopwatch" },
   ];
   const PRESETS = [5, 10, 15, 30, 60];
-  const WATER = [0, 30, 45, 60, 90];
+  async function setWater(minutes: number) {
+    focus.setWater(minutes);
+    await saveSetting("waterReminder", minutes);
+    await notifySettingsChanged();
+  }
 
   const R = 54;
   const C = 2 * Math.PI * R;
@@ -68,8 +74,8 @@
     <label class="water">
       <Icon name="drop" size={14} />
       <span>Water reminder</span>
-      <select value={focus.waterEveryMin} onchange={(e) => focus.setWater(Number(e.currentTarget.value))}>
-        {#each WATER as m (m)}<option value={m}>{m === 0 ? "Off" : `Every ${m} min`}</option>{/each}
+      <select value={focus.waterEveryMin} onchange={(e) => setWater(Number(e.currentTarget.value))}>
+        {#each WATER_CHOICES as m (m)}<option value={m}>{m === 0 ? "Off" : `Every ${m} min`}</option>{/each}
       </select>
     </label>
   </div>

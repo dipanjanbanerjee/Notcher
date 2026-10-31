@@ -3,7 +3,9 @@ fn main() {
     // Common Controls 6 from that manifest, so without it the test executable fails to
     // start (STATUS_ENTRYPOINT_NOT_FOUND). Embed the same manifest into every binary,
     // tests included, instead.
-    let windows = tauri_build::WindowsAttributes::new_without_app_manifest();
+    // The app icon shown for Notcher.exe in Explorer, the taskbar and the tray.
+    let windows = tauri_build::WindowsAttributes::new_without_app_manifest()
+        .window_icon_path("icons/icon.ico");
     tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
         .expect("failed to run the Tauri build script");
 

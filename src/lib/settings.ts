@@ -37,7 +37,12 @@ export interface Settings {
   taskbarSpeedPosition: "left" | "right";
   /** Show how much data was used today next to the speeds. */
   taskbarSpeedToday: boolean;
+  /** Minutes of PC use between "drink some water" pop-ups; 0 turns them off. */
+  waterReminder: number;
 }
+
+/** Choices for the water reminder, in minutes (0 = off). */
+export const WATER_CHOICES = [0, 30, 45, 60, 90, 120] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "obsidian",
@@ -56,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   taskbarSpeedSize: "medium",
   taskbarSpeedPosition: "right",
   taskbarSpeedToday: true,
+  waterReminder: 60,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [
@@ -79,6 +85,7 @@ export function sanitize(raw: Record<string, unknown>): Settings {
   if (!THEMES.some((t) => t.id === out.theme)) out.theme = DEFAULT_SETTINGS.theme;
   if (!["small", "medium", "large"].includes(out.taskbarSpeedSize)) out.taskbarSpeedSize = "medium";
   if (out.taskbarSpeedPosition !== "left") out.taskbarSpeedPosition = "right";
+  if (!(WATER_CHOICES as readonly number[]).includes(out.waterReminder)) out.waterReminder = DEFAULT_SETTINGS.waterReminder;
   return out;
 }
 

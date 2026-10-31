@@ -36,6 +36,7 @@
     stop: "M7 7h10v10H7z",
     external: "M14 4.5h5.5V10M19.5 4.5 11 13M17 13.5v5a1 1 0 0 1-1 1H5.5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5",
     close: "M6.5 6.5l11 11M17.5 6.5l-11 11",
+    screen: "M3.5 5h17v11h-17zM9 20h6M12 16v4",
     phone: "M8 3.5h8a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5zM11 17.5h2",
   } as const;
   export type IconName = keyof typeof SOLID | keyof typeof STROKE;

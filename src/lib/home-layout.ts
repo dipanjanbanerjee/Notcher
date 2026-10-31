@@ -1,9 +1,9 @@
 /**
- * Which widgets the Home tab shows, and in what order. The grid has 3 columns and
+ * Which widgets the Home tab shows, and in what order. The grid has 4 columns and
  * 2 rows; the media player is two columns wide, everything else one.
  */
 
-export type WidgetId = "clock" | "media" | "focus" | "system" | "clipboard" | "note";
+export type WidgetId = "clock" | "media" | "focus" | "system" | "clipboard" | "note" | "screen";
 
 export const ALL_WIDGETS: { id: WidgetId; label: string; span: 1 | 2 }[] = [
   { id: "clock", label: "Clock", span: 1 },
@@ -12,10 +12,11 @@ export const ALL_WIDGETS: { id: WidgetId; label: string; span: 1 | 2 }[] = [
   { id: "system", label: "System", span: 1 },
   { id: "clipboard", label: "Last copy", span: 1 },
   { id: "note", label: "Note", span: 1 },
+  { id: "screen", label: "Screen time", span: 1 },
 ];
 
-export const GRID_CELLS = 6;
-export const DEFAULT_LAYOUT: WidgetId[] = ["clock", "media", "focus", "system", "clipboard"];
+export const GRID_CELLS = 8;
+export const DEFAULT_LAYOUT: WidgetId[] = ["clock", "media", "screen", "focus", "system", "clipboard", "note"];
 
 const spanOf = (id: WidgetId) => ALL_WIDGETS.find((w) => w.id === id)?.span ?? 1;
 
@@ -70,10 +71,32 @@ export function placeWidget(layout: WidgetId[], id: WidgetId, index: number): Wi
 
 const KEY = "notcher.home.widgets";
 
+/** Set once a saved layout has been offered the widgets added since it was saved. */
+const UPGRADED_KEY = "notcher.home.v2";
+
+/**
+ * Layouts saved before the grid grew to four columns get the new Screen time widget,
+ * once. Removing it afterwards sticks.
+ */
+export function upgradeLayout(layout: WidgetId[]): WidgetId[] {
+  if (layout.includes("screen")) return layout;
+  const at = layout.indexOf("media");
+  const next = [...layout];
+  next.splice(at < 0 ? next.length : at + 1, 0, "screen");
+  return cellsUsed(next) <= GRID_CELLS ? next : layout;
+}
+
 export function loadLayout(): WidgetId[] {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? sanitizeLayout(JSON.parse(raw)) : [...DEFAULT_LAYOUT];
+    if (!raw) return [...DEFAULT_LAYOUT];
+    let layout = sanitizeLayout(JSON.parse(raw));
+    if (!localStorage.getItem(UPGRADED_KEY)) {
+      layout = upgradeLayout(layout);
+      localStorage.setItem(UPGRADED_KEY, "1");
+      saveLayout(layout);
+    }
+    return layout;
   } catch {
     return [...DEFAULT_LAYOUT];
   }

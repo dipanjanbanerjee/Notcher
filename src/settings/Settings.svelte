@@ -8,6 +8,7 @@
   import {
     DEFAULT_SETTINGS,
     THEMES,
+    WATER_CHOICES,
     applyTheme,
     loadSettings,
     saveSetting,
@@ -157,6 +158,17 @@
       hint="Data downloaded and uploaded since midnight"
       checked={settings.taskbarSpeedToday}
       onchange={(v) => update("taskbarSpeedToday", v)}
+    />
+  </section>
+
+  <section>
+    <h2>Wellbeing</h2>
+    <Choice
+      label="Water reminder"
+      hint="A gentle pop-up after this much time at the PC. Time away doesn't count, and it waits until a full-screen video or game ends."
+      value={String(settings.waterReminder)}
+      options={WATER_CHOICES.map((m) => ({ id: String(m), label: m === 0 ? "Off" : m < 60 ? `${m}m` : `${m / 60}h` }))}
+      onchange={(v) => update("waterReminder", Number(v))}
     />
   </section>
 
