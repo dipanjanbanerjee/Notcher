@@ -15,8 +15,9 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
   - **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
   - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island, and a water reminder can nudge you.
   - **System:** CPU and memory over the last minute, disk, network speed and battery.
-- **Glow:** a soft light around the island, tinted from the album art.
-- **Steps aside for full-screen apps:** games, videos and presentations.
+- **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
+- **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
+- **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
 - **Multi-monitor:** the island follows the screen your cursor is on.
 - **Shortcut:** `Ctrl+Alt+Space` opens and closes the island from anywhere (you can change it).
 - **Themes:** Obsidian, Daylight, Neon, Paper.

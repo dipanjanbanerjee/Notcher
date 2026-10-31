@@ -32,8 +32,8 @@ use windows::Win32::{
         },
         WindowsAndMessaging::{
             GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
-            GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_HWNDNEXT,
-            WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+            GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
+            GW_HWNDNEXT, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
         },
     },
 };
@@ -195,9 +195,12 @@ fn is_candidate(hwnd: HWND, own: HWND) -> bool {
 /// True when a full-screen app, game or presentation is on top on the island's monitor.
 /// Walks the z-order instead of only checking the focused window, so the island stays
 /// hidden even after it was clicked itself.
+/// With `include_maximized`, a maximized app window counts too, so the island tucks
+/// away while you work in a maximized window.
 pub fn fullscreen_app_active<R: Runtime>(
     _window: &WebviewWindow<R>,
     _monitor: &MonitorRect,
+    include_maximized: bool,
 ) -> bool {
     let Some(own) = island_hwnd() else {
         return false;
@@ -239,7 +242,8 @@ pub fn fullscreen_app_active<R: Runtime>(
                     y: rect.top,
                     width: (rect.right - rect.left).max(0) as u32,
                     height: (rect.bottom - rect.top).max(0) as u32,
-                    fullscreen: false,
+                    // Maximized windows are treated like full-screen ones when asked.
+                    fullscreen: include_maximized && unsafe { IsZoomed(hwnd) }.as_bool(),
                     overlay: ex & WS_EX_TOPMOST.0 != 0,
                 };
                 let on_monitor = monitor.contains(

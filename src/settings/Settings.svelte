@@ -90,6 +90,12 @@
       checked={settings.glow}
       onchange={(v) => update("glow", v)}
     />
+    <Toggle
+      label="Beat glow"
+      hint="A soft light under the island that pulses with your music"
+      checked={settings.beatGlow}
+      onchange={(v) => update("beatGlow", v)}
+    />
   </section>
 
   <section>
@@ -101,12 +107,34 @@
       onchange={(v) => update("trackChangeActivity", v)}
     />
     <Toggle
+      label="Tuck away for maximized windows"
+      hint="Shrink to a thin tab while a maximized or full-screen app is in front"
+      checked={settings.tuckOnMaximized}
+      onchange={(v) => update("tuckOnMaximized", v)}
+    />
+    <Toggle
       label="Follow the cursor"
       hint="Move the island to whichever screen you are using"
       checked={settings.followCursor}
       onchange={(v) => update("followCursor", v)}
     />
     <Toggle label="24-hour clock" hint="Off shows AM/PM" checked={settings.clock24h} onchange={(v) => update("clock24h", v)} />
+  </section>
+
+  <section>
+    <h2>Notifications</h2>
+    <Toggle
+      label="Show notifications from other apps"
+      hint="WhatsApp, Telegram, Mail and others pop out of the island. Needs Windows Settings › Privacy & security › Notifications › Allow apps to access your notifications."
+      checked={settings.notifications}
+      onchange={(v) => update("notifications", v)}
+    />
+    <Toggle
+      label="Show message preview"
+      hint="Off shows only the app and sender"
+      checked={settings.notificationPreview}
+      onchange={(v) => update("notificationPreview", v)}
+    />
   </section>
 
   <section>

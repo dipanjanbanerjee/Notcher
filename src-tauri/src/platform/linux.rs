@@ -352,7 +352,11 @@ pub fn monitors<R: Runtime>(window: &WebviewWindow<R>) -> Vec<MonitorRect> {
 
 /// True when the top-most app window on `monitor` is full-screen (X11 and XWayland;
 /// layer-shell compositors already keep the island under full-screen windows).
-pub fn fullscreen_app_active<R: Runtime>(window: &WebviewWindow<R>, monitor: &MonitorRect) -> bool {
+pub fn fullscreen_app_active<R: Runtime>(
+    window: &WebviewWindow<R>,
+    monitor: &MonitorRect,
+    _include_maximized: bool,
+) -> bool {
     thread_local! {
         static OWN: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
     }

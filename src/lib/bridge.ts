@@ -118,4 +118,19 @@ export interface Vitals {
 
 export const vitalsSnapshot = () => safeInvoke<Vitals>("vitals_snapshot");
 export const setVitalsActive = (active: boolean) => safeInvoke("set_vitals_active", { active });
+
+// ------------------------------------------------------------------ notifications & beat
+
+export interface AppNotification {
+  app: string;
+  title: string;
+  body: string;
+  icon: string | null;
+}
+
+export const onAppNotification = (h: (n: AppNotification) => void) => safeListen("notify://new", h);
+
+/** Speaker level, 0..1, while the beat glow is active. */
+export const onAudioLevel = (h: (level: number) => void) => safeListen("audio://level", h);
+export const setBeatActive = (active: boolean) => safeInvoke("set_beat_active", { active });
 export const onVitals = (h: (v: Vitals) => void) => safeListen("vitals://update", h);

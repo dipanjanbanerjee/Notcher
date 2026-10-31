@@ -18,6 +18,11 @@ pub fn follow_cursor<R: Runtime>(app: &AppHandle<R>) -> bool {
         .unwrap_or(true)
 }
 
+/// A boolean setting written by the web UI.
+pub fn flag<R: Runtime>(app: &AppHandle<R>, key: &str, default: bool) -> bool {
+    get(app, key).and_then(|v| v.as_bool()).unwrap_or(default)
+}
+
 /// Keep a history of copied text and images.
 pub fn clipboard_history<R: Runtime>(app: &AppHandle<R>) -> bool {
     get(app, "clipboardHistory")

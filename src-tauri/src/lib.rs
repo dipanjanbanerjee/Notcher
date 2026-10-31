@@ -1,8 +1,10 @@
+mod beat;
 mod clipboard;
 mod db;
 mod island;
 mod media;
 mod notes;
+mod notifications;
 mod platform;
 mod settings;
 mod tray;
@@ -173,6 +175,7 @@ pub fn run() {
             notes::note_delete,
             vitals::vitals_snapshot,
             vitals::set_vitals_active,
+            beat::set_beat_active,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -193,6 +196,8 @@ pub fn run() {
             media::start(handle.clone());
             clipboard::start(handle.clone());
             vitals::start(handle.clone());
+            notifications::start(handle.clone());
+            beat::start(handle.clone());
             platform::start_watcher(handle, mode, monitor);
             Ok(())
         })
