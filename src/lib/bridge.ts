@@ -145,3 +145,41 @@ export interface NetSpeed {
 }
 
 export const onNetSpeed = (h: (s: NetSpeed) => void) => safeListen("netspeed://update", h);
+
+// ------------------------------------------------------------------ Notcher Drop
+
+export interface DropReceived {
+  id: number;
+  name: string;
+  size: number;
+  done: number;
+  status: "receiving" | "done" | "failed";
+}
+
+export interface DropShared {
+  id: number;
+  name: string;
+  size: number;
+}
+
+export interface DropState {
+  active: boolean;
+  url: string | null;
+  qr: string | null;
+  folder: string;
+  received: DropReceived[];
+  shared: DropShared[];
+  error: string | null;
+}
+
+export const dropStart = () => safeInvoke<DropState>("drop_start");
+export const dropStop = () => safeInvoke("drop_stop");
+export const dropState = () => safeInvoke<DropState>("drop_state");
+export const dropShare = (paths: string[]) => safeInvoke<DropState>("drop_share", { paths });
+export const dropUnshare = (id: number) => safeInvoke("drop_unshare", { id });
+export const dropClearReceived = () => safeInvoke("drop_clear_received");
+/** Opens a received file (or the Drop folder when `id` is null); `reveal` shows it in Explorer. */
+export const dropOpen = (id: number | null, reveal = false) => safeInvoke("drop_open", { id, reveal });
+export const onDropState = (h: (s: DropState) => void) => safeListen("drop://state", h);
+export const onDropReceived = (h: (f: { name: string; size: number }) => void) =>
+  safeListen("drop://received", h);

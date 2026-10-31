@@ -1,6 +1,7 @@
 mod beat;
 mod clipboard;
 mod db;
+mod filedrop;
 mod island;
 mod media;
 mod netspeed;
@@ -136,6 +137,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -177,6 +179,13 @@ pub fn run() {
             vitals::vitals_snapshot,
             vitals::set_vitals_active,
             beat::set_beat_active,
+            filedrop::drop_start,
+            filedrop::drop_stop,
+            filedrop::drop_state,
+            filedrop::drop_share,
+            filedrop::drop_unshare,
+            filedrop::drop_clear_received,
+            filedrop::drop_open,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

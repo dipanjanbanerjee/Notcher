@@ -3,7 +3,8 @@
   import Art from "../components/Art.svelte";
   import Equalizer from "../components/Equalizer.svelte";
   import Icon from "../components/Icon.svelte";
-  import OpenPanel, { type TabId } from "./panel/OpenPanel.svelte";
+  import OpenPanel, { TAB_IDS, type TabId } from "./panel/OpenPanel.svelte";
+  import { drop } from "../lib/stores/drop.svelte";
   import { clips } from "../lib/stores/clips.svelte";
   import { focus } from "../lib/stores/focus.svelte";
   import { notes } from "../lib/stores/notes.svelte";
@@ -16,6 +17,7 @@
     onNativePointer,
     onSettingsChanged,
     onAppNotification,
+    onDropReceived,
     onAudioLevel,
     onSuppressed,
     onToggle,
@@ -47,6 +49,8 @@
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
   import { SPRINGS, SpringGroup } from "../lib/spring";
   import { BeatFollower } from "../lib/beat";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
+  import { formatBytes } from "../lib/stores/vitals.svelte";
   import { formatClock, formatDuration, formatShortDate, meridiem } from "../lib/time";
 
   /** Must match WINDOW_WIDTH in src-tauri/src/island.rs. */
@@ -191,7 +195,8 @@
     | { kind: "timer"; title: string; detail: string }
     | { kind: "water" }
     | { kind: "copied"; text: string }
-    | { kind: "notification"; app: string; title: string; body: string; icon: string | null };
+    | { kind: "notification"; app: string; title: string; body: string; icon: string | null }
+    | { kind: "drop"; name: string; size: string };
   let live = $state<LiveActivity>({ kind: "track" });
 
   function showLiveActivity(activity: LiveActivity, duration = TIMING.liveDuration) {
@@ -202,6 +207,25 @@
     later("live", duration, () => dispatch({ type: "liveEnd", hovered }));
   }
 
+  // ---------------------------------------------------------------- Notcher Drop
+
+  /** Files are being dragged over the island. */
+  let dragging = $state(false);
+
+  /** Dragging files onto the island opens the Drop tab; dropping shares them with the phone. */
+  function onFileDrag(type: "enter" | "over" | "leave" | "drop", paths: string[] = []) {
+    if (type === "enter") {
+      dragging = true;
+      tab = "drop";
+      if (mode !== "open") dispatch({ type: "click" });
+    } else if (type === "leave") {
+      dragging = false;
+    } else if (type === "drop") {
+      dragging = false;
+      void drop.share(paths);
+    }
+  }
+
   // ---------------------------------------------------------------- tools
 
   const TAB_KEY = "notcher.tab";
@@ -209,7 +233,7 @@
   function readTab(): TabId {
     try {
       const t = localStorage.getItem(TAB_KEY);
-      if (t === "home" || t === "clips" || t === "jot" || t === "focus" || t === "vitals") return t;
+      if (TAB_IDS.includes(t as TabId)) return t as TabId;
     } catch {
       /* storage unavailable */
     }
@@ -311,7 +335,8 @@
     );
     seedPreviewData();
     const t = params.get("tab");
-    if (t === "home" || t === "clips" || t === "jot" || t === "focus" || t === "vitals") tab = t;
+    if (TAB_IDS.includes(t as TabId)) tab = t as TabId;
+    if (t === "drop") drop.seedPreview();
     const m = params.get("mode");
     if (m === "open" || m === "live") {
       mode = m;
@@ -335,6 +360,10 @@
         else animateTo(mode);
         reportHitRegion(geometry);
       },
+      /** Pretends a file arrived from the phone. */
+      received: (name = "IMG_2044.jpg") => showLiveActivity({ kind: "drop", name, size: "2.8 MB" }, 3800),
+      /** Pretends files are being dragged over the island. */
+      drag: (on = true) => onFileDrag(on ? "enter" : "leave"),
       nextTrack: () =>
         receiveTrack({ ...track!, title: "Paper Satellites", artist: "Low Orbit Club", positionMs: 0 }, true),
     };
@@ -422,6 +451,19 @@
         if (beatOn) beat.input(level);
       }),
     );
+    unlisten.push(drop.listen());
+    void drop.refresh();
+    unlisten.push(
+      onDropReceived((f) => showLiveActivity({ kind: "drop", name: f.name, size: formatBytes(f.size) }, 3800)),
+    );
+    if (inTauri) {
+      unlisten.push(
+        getCurrentWebview().onDragDropEvent((e) => {
+          const p = e.payload;
+          onFileDrag(p.type, p.type === "drop" ? p.paths : []);
+        }),
+      );
+    }
     unlisten.push(
       onAppNotification((n) => {
         if (settings.notifications) showLiveActivity({ kind: "notification", ...n }, 4500);
@@ -552,6 +594,13 @@
               <strong>{live.title}</strong>
               {#if live.body}<span class="muted">{live.body}</span>{/if}
             </div>
+          {:else if live.kind === "drop"}
+            <span class="badge"><Icon name="beam" size={24} /></span>
+            <div class="stack">
+              <span class="eyebrow">From your phone</span>
+              <strong>{live.name}</strong>
+              <span class="muted">{live.size} · saved to Notcher Drop</span>
+            </div>
           {:else if live.kind === "copied"}
             <span class="badge"><Icon name="copy" size={22} /></span>
             <div class="stack">
@@ -572,7 +621,7 @@
       style:margin-left="{-GEOMETRY.open.width / 2}px"
       inert={shownMode !== "open"}
     >
-      <OpenPanel {track} {clock} clock24h={settings.clock24h} bind:tab />
+      <OpenPanel {track} {clock} clock24h={settings.clock24h} {dragging} bind:tab />
     </div>
   </div>
 </div>
