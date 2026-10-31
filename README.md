@@ -6,7 +6,7 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
 
 ## What works today
 
-- **The island:** a notch-style shape that hangs from the top of the screen and morphs between *rest → peek → live → open* with spring physics. Every animation can be interrupted, and reduced-motion settings are respected.
+- **The island:** a notch-style shape that hangs from the top of the screen. At rest it shows the date and a live clock with seconds (12-hour with AM/PM, or 24-hour). Hover over it and it springs open into the full panel. Short *live* pop-ups, such as a new song or a finished timer, appear from rest and fold back by themselves. Every animation can be interrupted, and reduced-motion settings are respected.
 - **Click-through:** only the island itself takes the mouse, and everything around it clicks straight through to your apps.
 - **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Windows Media Player…), with play/pause, next and previous. A short *live* activity appears when the track changes.
 - **Open panel with five tabs** (`Ctrl+1` to `Ctrl+5`):
@@ -39,7 +39,7 @@ cd src-tauri && cargo test
 npm run tauri build      # installers in src-tauri/target/release/bundle (nsis, msi)
 ```
 
-**Designing in a browser:** run `npm run dev` and open `http://localhost:1420/?demo`. You get a wallpaper and a fake track. Add `&mode=open`, `&mode=peek` or `&mode=live` to jump to a state, and `&tab=clips` (or `home`, `jot`, `focus`, `vitals`) to pick a tab. In the console, `notcher.dispatch({type: "toggle"})` and `notcher.nextTrack()` drive the island.
+**Designing in a browser:** run `npm run dev` and open `http://localhost:1420/?demo`. You get a wallpaper and a fake track. Add `&mode=open` or `&mode=live` to jump to a state, and `&tab=clips` (or `home`, `jot`, `focus`, `vitals`) to pick a tab. In the console, `notcher.dispatch({type: "toggle"})` and `notcher.nextTrack()` drive the island.
 
 ### Project layout
 

@@ -41,7 +41,7 @@
   } from "../lib/shape";
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
   import { SPRINGS, SpringGroup } from "../lib/spring";
-  import { formatClock, formatDate, formatDuration } from "../lib/time";
+  import { formatClock, formatDuration, formatShortDate, meridiem } from "../lib/time";
 
   /** Must match WINDOW_WIDTH in src-tauri/src/island.rs. */
   const WINDOW_WIDTH = 760;
@@ -144,13 +144,11 @@
   }
 
   function dispatch(event: IslandEvent) {
-    const next = transition(mode, event, { hoverToOpen: settings.hoverToOpen });
+    const next = transition(mode, event);
     if (next === mode) return;
     const prev = mode;
     mode = next;
     if (next !== "live") cancel("live");
-    if (next === "peek" && hovered && settings.hoverToOpen) later("dwell", TIMING.dwellToOpen, () => dispatch({ type: "dwell" }));
-    if (next !== "peek") cancel("dwell");
     if (next === "open" && prev !== "open") now = Date.now();
     animateTo(next);
   }
@@ -159,14 +157,13 @@
     if (hovered) return;
     hovered = true;
     cancel("leave");
-    if (mode === "rest") later("intent", TIMING.hoverIntent, () => dispatch({ type: "hoverIntent" }));
-    else if (mode === "peek" && settings.hoverToOpen) later("dwell", TIMING.dwellToOpen, () => dispatch({ type: "dwell" }));
+    if (mode !== "open") later("intent", TIMING.hoverIntent, () => dispatch({ type: "hoverIntent" }));
   }
 
   function pointerLeave() {
     if (!hovered) return;
     hovered = false;
-    cancel("intent", "dwell");
+    cancel("intent");
     later("leave", TIMING.leaveGrace, () => dispatch({ type: "leave" }));
   }
 
@@ -269,7 +266,7 @@
     const t = params.get("tab");
     if (t === "home" || t === "clips" || t === "jot" || t === "focus" || t === "vitals") tab = t;
     const m = params.get("mode");
-    if (m === "open" || m === "peek" || m === "live") {
+    if (m === "open" || m === "live") {
       mode = m;
       shownMode = m;
       springs.to(GEOMETRY[m], undefined, true);
@@ -338,7 +335,14 @@
       ),
     );
 
-    const tick = setInterval(() => onTick(Date.now()), 250);
+    // Tick right after each new second so the clock's seconds change evenly.
+    let tick: ReturnType<typeof setTimeout>;
+    const scheduleTick = () => {
+      const t = Date.now();
+      onTick(t);
+      tick = setTimeout(scheduleTick, 1000 - (t % 1000) + 2);
+    };
+    scheduleTick();
     unlisten.push(vitals.listen());
     unlisten.push(
       clips.listen((clip) => {
@@ -371,7 +375,7 @@
     reportHitRegion(geometry);
 
     return () => {
-      clearInterval(tick);
+      clearTimeout(tick);
       document.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onOut);
       window.removeEventListener("keydown", onKey);
@@ -426,29 +430,18 @@
       style:margin-left="{-GEOMETRY[shownMode].width / 2}px"
     >
       {#if shownMode === "rest"}
-        {#if track || focus.active}
-          <div class="rest-row">
-            {#if track}<Art src={track.art} size={20} radius={6} />{:else}<span></span>{/if}
-            {#if focus.active}
-              <span class="rest-timer" class:paused={!focus.running}>{formatDuration(focus.remaining)}</span>
-            {:else if track}
-              <Equalizer playing={track.playing} size={14} />
-            {/if}
-          </div>
-        {/if}
-      {:else if shownMode === "peek"}
-        <div class="peek-row">
-          {#if track}
-            <Art src={track.art} size={28} radius={8} />
-            <div class="line">
-              <strong>{track.title}</strong>
-              <span>{track.artist}</span>
-            </div>
-            <Equalizer playing={track.playing} size={16} />
+        <div class="rest-row">
+          {#if track?.playing}<Equalizer playing size={12} />{/if}
+          {#if focus.active}
+            <span class="rest-timer" class:paused={!focus.running}>
+              <Icon name="timer" size={13} />{formatDuration(focus.remaining)}
+            </span>
           {:else}
-            <strong class="clock-sm">{formatClock(clock, settings.clock24h)}</strong>
-            <span class="muted">{formatDate(clock)}</span>
+            <span class="rest-date">{formatShortDate(clock)}</span>
           {/if}
+          <span class="rest-time">
+            {formatClock(clock, settings.clock24h, true)}{#if !settings.clock24h}<small>{meridiem(clock)}</small>{/if}
+          </span>
         </div>
       {:else if shownMode === "live"}
         <div class="live-row">
@@ -579,40 +572,25 @@
     height: 100%;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 12px 0 10px;
-  }
-  .peek-row {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 16px 0 10px;
-  }
-  .peek-row .line {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .peek-row .line strong {
+    justify-content: center;
+    gap: 14px;
+    padding: 0 16px;
     font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .peek-row .line span {
-    font-size: 12px;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .clock-sm {
-    font-size: 14px;
     font-variant-numeric: tabular-nums;
-    padding-left: 8px;
+    white-space: nowrap;
+  }
+  .rest-date {
+    color: var(--muted);
+  }
+  .rest-time {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .rest-time small {
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
   }
   .live-row {
     height: 100%;
@@ -654,9 +632,10 @@
     color: var(--glow, var(--accent));
   }
   .rest-timer {
-    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-weight: 600;
-    font-variant-numeric: tabular-nums;
     color: var(--glow, var(--accent));
   }
   .rest-timer.paused { color: var(--muted); }

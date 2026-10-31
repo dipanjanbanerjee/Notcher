@@ -95,12 +95,6 @@
   <section>
     <h2>Behaviour</h2>
     <Toggle
-      label="Open on hover"
-      hint="Open the island after resting the pointer on it, without clicking"
-      checked={settings.hoverToOpen}
-      onchange={(v) => update("hoverToOpen", v)}
-    />
-    <Toggle
       label="Announce track changes"
       hint="Briefly expand the island when a new song starts"
       checked={settings.trackChangeActivity}
@@ -112,7 +106,7 @@
       checked={settings.followCursor}
       onchange={(v) => update("followCursor", v)}
     />
-    <Toggle label="24-hour clock" checked={settings.clock24h} onchange={(v) => update("clock24h", v)} />
+    <Toggle label="24-hour clock" hint="Off shows AM/PM" checked={settings.clock24h} onchange={(v) => update("clock24h", v)} />
   </section>
 
   <section>

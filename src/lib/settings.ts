@@ -10,14 +10,12 @@ export interface Settings {
   theme: ThemeName;
   /** Ambient light around the island, tinted from cover art. */
   glow: boolean;
-  /** Open the island after hovering for a moment, without clicking. */
-  hoverToOpen: boolean;
   /** Show a live activity when the track changes. */
   trackChangeActivity: boolean;
   /** Move the island to the monitor the cursor is on. */
   followCursor: boolean;
   shortcut: string;
-  /** Use 24-hour time. */
+  /** Use 24-hour time (otherwise 12-hour with AM/PM). */
   clock24h: boolean;
   /** Keep a history of copied text and images. */
   clipboardHistory: boolean;
@@ -28,7 +26,6 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   theme: "obsidian",
   glow: true,
-  hoverToOpen: false,
   trackChangeActivity: true,
   followCursor: true,
   shortcut: "CommandOrControl+Alt+Space",

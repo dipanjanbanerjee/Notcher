@@ -5,13 +5,15 @@
 
 import type { IslandGeometry } from "./shape";
 
-export type IslandMode = "rest" | "peek" | "live" | "open";
+/**
+ * Two sizes the user controls (rest and open) plus short-lived live activities,
+ * such as a track change, that pop out from rest and fold back on their own.
+ */
+export type IslandMode = "rest" | "live" | "open";
 
 export type IslandEvent =
-  /** Pointer has hovered long enough to show intent. */
+  /** Pointer has rested on the island long enough to show intent. */
   | { type: "hoverIntent" }
-  /** Pointer has stayed on a peeking island long enough to open it (if enabled). */
-  | { type: "dwell" }
   /** Pointer left the island and the grace period passed. */
   | { type: "leave" }
   | { type: "click" }
@@ -24,42 +26,30 @@ export type IslandEvent =
   /** A full-screen app appeared. */
   | { type: "suppress" };
 
-export interface TransitionOptions {
-  hoverToOpen: boolean;
-}
-
-export function transition(
-  mode: IslandMode,
-  event: IslandEvent,
-  options: TransitionOptions,
-): IslandMode {
+export function transition(mode: IslandMode, event: IslandEvent): IslandMode {
   switch (event.type) {
     case "suppress":
       return "rest";
     case "toggle":
       return mode === "open" ? "rest" : "open";
     case "escape":
-      return mode === "open" || mode === "peek" ? "rest" : mode;
+      return mode === "open" ? "rest" : mode;
     case "click":
-      return mode === "open" ? mode : "open";
     case "hoverIntent":
-      return mode === "rest" ? "peek" : mode;
-    case "dwell":
-      return mode === "peek" && options.hoverToOpen ? "open" : mode;
+      return "open";
     case "leave":
-      return mode === "peek" || mode === "open" ? "rest" : mode;
+      return mode === "open" ? "rest" : mode;
     case "liveStart":
       return mode === "rest" || mode === "live" ? "live" : mode;
     case "liveEnd":
       if (mode !== "live") return mode;
-      return event.hovered ? "peek" : "rest";
+      return event.hovered ? "open" : "rest";
   }
 }
 
 /** Target geometry for each mode, in CSS pixels. */
 export const GEOMETRY: Record<IslandMode, IslandGeometry> = {
-  rest: { width: 196, height: 34, radius: 14, shoulder: 10 },
-  peek: { width: 300, height: 44, radius: 18, shoulder: 12 },
+  rest: { width: 252, height: 34, radius: 14, shoulder: 10 },
   live: { width: 380, height: 76, radius: 26, shoulder: 14 },
   open: { width: 640, height: 324, radius: 34, shoulder: 16 },
 };
@@ -69,8 +59,8 @@ export const REST_HOT_ZONE = { sides: 24, bottom: 6 };
 
 /** Interaction timings in milliseconds. */
 export const TIMING = {
-  hoverIntent: 120,
-  dwellToOpen: 650,
+  /** Short enough to feel instant, long enough that a cursor passing by doesn't open it. */
+  hoverIntent: 140,
   leaveGrace: 280,
   liveDuration: 3200,
 };
