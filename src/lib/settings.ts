@@ -21,6 +21,14 @@ export interface Settings {
   clipboardHistory: boolean;
   /** Briefly show "Copied" in the island when something is copied. */
   copyActivity: boolean;
+  /** Pop up notifications from other apps (WhatsApp, Telegram, …). */
+  notifications: boolean;
+  /** Include the message text in those pop-ups. */
+  notificationPreview: boolean;
+  /** Tuck the island away while a maximized window is in front, as for full screen. */
+  tuckOnMaximized: boolean;
+  /** A soft light under the island that moves with the music. */
+  beatGlow: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,6 +40,10 @@ export const DEFAULT_SETTINGS: Settings = {
   clock24h: false,
   clipboardHistory: true,
   copyActivity: true,
+  notifications: true,
+  notificationPreview: true,
+  tuckOnMaximized: true,
+  beatGlow: true,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [

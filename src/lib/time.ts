@@ -20,11 +20,11 @@ export function meridiem(date: Date): string {
   return date.getHours() < 12 ? "AM" : "PM";
 }
 
-/** "Sat, Oct 31": short weekday, short month, day, always in that order. */
+/** "Sat Oct 31": short weekday, short month, day, always in that order. */
 export function formatShortDate(date: Date, locale?: string): string {
   const weekday = date.toLocaleDateString(locale, { weekday: "short" });
   const month = date.toLocaleDateString(locale, { month: "short" });
-  return `${weekday}, ${month} ${date.getDate()}`;
+  return `${weekday} ${month} ${date.getDate()}`;
 }
 
 export function formatDate(date: Date, locale?: string): string {

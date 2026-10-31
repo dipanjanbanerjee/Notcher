@@ -23,6 +23,7 @@
     drop: "M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z",
     bolt: "M13 3 5.5 13.5H12L11 21l7.5-10.5H12z",
     copy: "M8.5 8.5h10v11h-10zM15.5 8.5V4.5h-10v11h3",
+    bell: "M6.5 16.5v-5a5.5 5.5 0 0 1 11 0v5l1.5 2h-14zM10 20.5a2 2 0 0 0 4 0",
   } as const;
   export type IconName = keyof typeof SOLID | keyof typeof STROKE;
 </script>

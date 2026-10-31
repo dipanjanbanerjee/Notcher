@@ -21,7 +21,7 @@ describe("time helpers", () => {
     const d = new Date(2026, 9, 31, 22, 52, 7);
     expect(formatClock(d, false, true)).toBe("10:52:07");
     expect(formatClock(d, true, true)).toBe("22:52:07");
-    expect(formatShortDate(d, "en-US")).toBe("Sat, Oct 31");
+    expect(formatShortDate(d, "en-US")).toBe("Sat Oct 31");
   });
 
   it("estimates playback position", () => {

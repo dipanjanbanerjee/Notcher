@@ -170,8 +170,10 @@ pub fn start_watcher<R: Runtime>(
                             }
                         }
                     }
-                    let fullscreen = current_monitor
-                        .is_some_and(|m| backend::fullscreen_app_active(&window, &m));
+                    let include_maximized = settings::flag(&app, "tuckOnMaximized", true);
+                    let fullscreen = current_monitor.is_some_and(|m| {
+                        backend::fullscreen_app_active(&window, &m, include_maximized)
+                    });
                     if fullscreen != suppressed {
                         suppressed = fullscreen;
                         let _ = app.emit(SUPPRESS_EVENT, Flag { value: suppressed });

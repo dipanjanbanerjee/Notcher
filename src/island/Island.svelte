@@ -15,8 +15,11 @@
     onMedia,
     onNativePointer,
     onSettingsChanged,
+    onAppNotification,
+    onAudioLevel,
     onSuppressed,
     onToggle,
+    setBeatActive,
     setHitRegion,
     type NowPlaying,
   } from "../lib/bridge";
@@ -42,6 +45,7 @@
   } from "../lib/shape";
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
   import { SPRINGS, SpringGroup } from "../lib/spring";
+  import { BeatFollower } from "../lib/beat";
   import { formatClock, formatDuration, formatShortDate, meridiem } from "../lib/time";
 
   /** Must match WINDOW_WIDTH in src-tauri/src/island.rs. */
@@ -179,12 +183,13 @@
     | { kind: "track" }
     | { kind: "timer"; title: string; detail: string }
     | { kind: "water" }
-    | { kind: "copied"; text: string };
+    | { kind: "copied"; text: string }
+    | { kind: "notification"; app: string; title: string; body: string; icon: string | null };
   let live = $state<LiveActivity>({ kind: "track" });
 
   function showLiveActivity(activity: LiveActivity, duration = TIMING.liveDuration) {
-    // No pop-ups over a full-screen video, game or presentation.
-    if (suppressed || (mode !== "rest" && mode !== "live")) return;
+    // Pop-ups also come out of the tucked tab; the island folds back afterwards.
+    if (mode !== "rest" && mode !== "live") return;
     live = activity;
     dispatch({ type: "liveStart" });
     later("live", duration, () => dispatch({ type: "liveEnd", hovered }));
@@ -226,6 +231,37 @@
     } else if (water) {
       showLiveActivity({ kind: "water" }, 4000);
     }
+  }
+
+  // ---------------------------------------------------------------- beat glow
+
+  let beatEl = $state<HTMLDivElement | null>(null);
+  const beat = new BeatFollower();
+  let beatFrame = 0;
+  let beatLast = 0;
+  const beatOn = $derived(
+    settings.beatGlow && !!track?.playing && !tucked && mode !== "open" && !reducedMotion.matches,
+  );
+  $effect(() => {
+    void setBeatActive(beatOn);
+    if (!beatOn) beat.input(0);
+    else startBeatLoop();
+  });
+
+  /** Writes straight to the element each frame; no Svelte state, so nothing else re-renders. */
+  function startBeatLoop() {
+    if (beatFrame) return;
+    beatLast = performance.now();
+    const frame = (t: number) => {
+      const s = beat.step(t - beatLast, t);
+      beatLast = t;
+      if (beatEl) {
+        beatEl.style.opacity = (s * 0.9).toFixed(3);
+        beatEl.style.transform = `translateX(-50%) scaleX(${(0.55 + 0.45 * s).toFixed(3)})`;
+      }
+      beatFrame = !beatOn && beat.quiet ? 0 : requestAnimationFrame(frame);
+    };
+    beatFrame = requestAnimationFrame(frame);
   }
 
   // ---------------------------------------------------------------- media
@@ -277,6 +313,14 @@
     }
     (window as unknown as { notcher: object }).notcher = {
       dispatch,
+      notify: (title = "Mum", body = "Dinner at 8? Bring the cake 🎂", app = "WhatsApp") =>
+        showLiveActivity({ kind: "notification", app, title, body, icon: null }, 4500),
+      /** Feeds a fake beat: 120 bpm with a little noise. */
+      beat: () =>
+        setInterval(() => {
+          const phase = (performance.now() % 500) / 500;
+          beat.input(phase < 0.12 ? 0.85 : 0.3 + Math.random() * 0.1);
+        }, 33),
       /** Pretends a full-screen app appeared or went away. */
       fullscreen: (value: boolean) => {
         suppressed = value;
@@ -366,6 +410,16 @@
       }),
     );
     void clips.refresh();
+    unlisten.push(
+      onAudioLevel((level) => {
+        if (beatOn) beat.input(level);
+      }),
+    );
+    unlisten.push(
+      onAppNotification((n) => {
+        if (settings.notifications) showLiveActivity({ kind: "notification", ...n }, 4500);
+      }),
+    );
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dispatch({ type: "escape" });
     };
@@ -394,6 +448,7 @@
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("blur", onBlur);
       springs.stop();
+      cancelAnimationFrame(beatFrame);
       for (const t of timers.values()) clearTimeout(t);
       for (const u of unlisten) void u.then((f) => f());
     };
@@ -412,6 +467,7 @@
   >
     <div class="shadow"></div>
     <div class="glow" class:on={glowOn} class:breathe={glowOn && mode === "rest"}></div>
+    <div class="beat" bind:this={beatEl}></div>
   </div>
   <svg class="shape" width={WINDOW_WIDTH} height="400" aria-hidden="true">
     <path class="fill" d={path} />
@@ -480,6 +536,15 @@
               <strong>Time for some water</strong>
               <span class="muted">A glass now keeps you sharp</span>
             </div>
+          {:else if live.kind === "notification"}
+            <span class="badge">
+              {#if live.icon}<img src={live.icon} alt="" />{:else}<Icon name="bell" size={24} />{/if}
+            </span>
+            <div class="stack">
+              <span class="eyebrow">{live.app || "Notification"}</span>
+              <strong>{live.title}</strong>
+              {#if live.body}<span class="muted">{live.body}</span>{/if}
+            </div>
           {:else if live.kind === "copied"}
             <span class="badge"><Icon name="copy" size={22} /></span>
             <div class="stack">
@@ -542,6 +607,20 @@
     box-shadow: 0 0 18px 3px var(--glow, var(--accent));
     transition: opacity 500ms ease;
     will-change: opacity;
+  }
+  /* Thin light under the bottom edge that moves with the music (driven from script). */
+  .halo > .beat {
+    inset: auto;
+    left: 50%;
+    bottom: -7px;
+    width: 72%;
+    height: 12px;
+    border-radius: 50%;
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.55);
+    background: radial-gradient(closest-side, var(--glow, var(--accent)), transparent);
+    will-change: opacity, transform;
+    pointer-events: none;
   }
   .glow.on {
     opacity: 0.75;
@@ -635,6 +714,11 @@
   }
   .muted { color: var(--muted); }
 
+  .badge img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
   .badge {
     width: 54px;
     height: 54px;
