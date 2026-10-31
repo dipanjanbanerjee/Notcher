@@ -78,10 +78,12 @@
 
   const springs = new SpringGroup(
     { width: GEOMETRY.rest.width, height: GEOMETRY.rest.height, radius: GEOMETRY.rest.radius, shoulder: GEOMETRY.rest.shoulder },
-    (v) => {
+    (v, settled) => {
       geometry = v;
       maybeSwapContent(v);
-      reportHitRegion(v);
+      // The region already covers the whole motion (see animateTo), so it is only
+      // tightened once the shape comes to rest. No per-frame IPC keeps frames smooth.
+      if (settled) reportHitRegion(v);
     },
   );
 
@@ -297,10 +299,19 @@
 </script>
 
 <div class="stage" class:suppressed style:--glow={glowCss}>
+  <!-- Shadow and glow use box-shadow on a plain box: far cheaper to repaint every
+       frame than SVG filters, especially in WebKitGTK. -->
+  <div
+    class="halo"
+    style:left="{body.x}px"
+    style:width="{body.width}px"
+    style:height="{body.height}px"
+    style:border-radius="0 0 {geometry.radius * 1.15}px {geometry.radius * 1.15}px"
+  >
+    <div class="shadow"></div>
+    <div class="glow" class:on={glowOn} class:breathe={glowOn && mode === "rest"}></div>
+  </div>
   <svg class="shape" width={WINDOW_WIDTH} height="400" aria-hidden="true">
-    {#if glowOn}
-      <path class="glow" class:breathe={mode === "rest"} d={path} />
-    {/if}
     <path class="fill" d={path} />
     <path class="rim" d={path} />
   </svg>
@@ -389,27 +400,39 @@
   }
   .fill {
     fill: var(--island-bg);
-    filter: drop-shadow(0 10px 24px var(--shadow)) drop-shadow(0 2px 4px var(--shadow));
   }
   .rim {
     fill: none;
     stroke: var(--rim);
     stroke-width: 1;
   }
+  .halo {
+    position: absolute;
+    top: 0;
+  }
+  .halo > div {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .shadow {
+    box-shadow: 0 10px 28px var(--shadow), 0 2px 6px var(--shadow);
+  }
   .glow {
-    fill: none;
-    stroke: var(--glow, var(--accent));
-    stroke-width: 3;
-    filter: blur(7px);
-    opacity: 0.85;
-    transition: stroke 600ms ease;
+    opacity: 0;
+    box-shadow: 0 0 18px 3px var(--glow, var(--accent));
+    transition: opacity 500ms ease;
+    will-change: opacity;
+  }
+  .glow.on {
+    opacity: 0.75;
   }
   .glow.breathe {
     animation: breathe 3.6s ease-in-out infinite;
   }
   @keyframes breathe {
-    0%, 100% { opacity: 0.35; }
-    50% { opacity: 0.8; }
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.75; }
   }
 
   .island {
@@ -425,22 +448,19 @@
     position: absolute;
     inset: 0;
     opacity: 0;
-    filter: blur(6px);
-    transform: scale(0.96);
+    transform: scale(0.96) translateY(-4px);
     transform-origin: 50% 0;
     transition:
       opacity 90ms ease,
-      filter 90ms ease,
       transform 90ms ease;
+    will-change: opacity, transform;
   }
   .content.visible {
     opacity: 1;
-    filter: blur(0);
-    transform: scale(1);
+    transform: none;
     transition:
-      opacity 220ms ease,
-      filter 260ms ease,
-      transform 340ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
+      opacity 200ms ease,
+      transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
   }
 
   .rest-row {
@@ -549,7 +569,7 @@
   .gear:focus-visible { outline: 2px solid var(--accent); }
 
   @media (prefers-reduced-motion: reduce) {
-    .content, .content.visible { filter: none; transform: none; }
+    .content, .content.visible { transform: none; }
     .glow.breathe { animation: none; opacity: 0.6; }
   }
 </style>

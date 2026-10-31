@@ -8,7 +8,10 @@
 use crate::island::{self, HitRegion, IslandState, MonitorRect};
 use crate::settings;
 use serde::Serialize;
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindow};
 
 #[cfg(target_os = "linux")]
@@ -55,17 +58,25 @@ pub fn apply_hit_region<R: Runtime>(window: &WebviewWindow<R>, region: HitRegion
     backend::apply_hit_region(window, region);
 }
 
-/// Moves the island to the top centre of the monitor under the cursor (or the primary one).
+/// Moves the island to the top centre of the monitor under the cursor (or the first one).
 pub fn place_on_best_monitor<R: Runtime>(window: &WebviewWindow<R>) -> Option<MonitorRect> {
-    let monitor = cursor_monitor(window).or_else(|| primary_monitor(window))?;
-    let (x, y) = island::window_position_for(&monitor);
-    if let Err(err) = window.set_position(PhysicalPosition::new(x, y)) {
-        log::warn!("could not move island: {err}");
-    }
+    let monitors = backend::monitors(window);
+    let monitor = backend::cursor_position(window)
+        .and_then(|(x, y)| island::monitor_at(&monitors, x, y))
+        .or_else(|| primary_monitor(window))
+        .or_else(|| monitors.first().copied())?;
+    move_to(window, &monitor);
     Some(monitor)
 }
 
-fn to_rect(m: &tauri::Monitor) -> MonitorRect {
+fn move_to<R: Runtime>(window: &WebviewWindow<R>, monitor: &MonitorRect) {
+    let (x, y) = island::window_position_for(monitor);
+    if let Err(err) = window.set_position(PhysicalPosition::new(x, y)) {
+        log::warn!("could not move island: {err}");
+    }
+}
+
+pub(crate) fn to_rect(m: &tauri::Monitor) -> MonitorRect {
     MonitorRect {
         x: m.position().x,
         y: m.position().y,
@@ -84,18 +95,20 @@ fn primary_monitor<R: Runtime>(window: &WebviewWindow<R>) -> Option<MonitorRect>
         .map(to_rect)
 }
 
-fn cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> Option<MonitorRect> {
-    let cursor = window.cursor_position().ok()?;
-    window
-        .available_monitors()
-        .ok()?
-        .iter()
-        .map(to_rect)
-        .find(|m| m.contains(cursor.x, cursor.y))
-}
+/// How often the cursor is checked for click-through (Windows only).
+const POINTER_POLL: Duration = Duration::from_millis(33);
+/// How often monitors and full-screen apps are checked.
+const SLOW_POLL: Duration = Duration::from_millis(400);
 
 /// Background loop for the things the OS will not tell us about by event.
-pub fn start_watcher<R: Runtime>(app: AppHandle<R>, mode: PlatformMode) {
+///
+/// It talks to the OS directly (Win32 / its own X11 connection) instead of through
+/// Tauri's window getters, which on Linux block the UI thread and can drop frames.
+pub fn start_watcher<R: Runtime>(
+    app: AppHandle<R>,
+    mode: PlatformMode,
+    initial: Option<MonitorRect>,
+) {
     if mode.layer_shell {
         return;
     }
@@ -105,39 +118,58 @@ pub fn start_watcher<R: Runtime>(app: AppHandle<R>, mode: PlatformMode) {
             let Some(window) = app.get_webview_window("island") else {
                 return;
             };
-            let mut current_monitor = None;
+            let mut current_monitor = initial;
             let mut suppressed = false;
             let mut pointer = backend::PointerTracker::default();
-            let mut tick: u32 = 0;
+            let mut last_slow = Instant::now() - SLOW_POLL;
             loop {
-                let region = app
-                    .state::<IslandState>()
-                    .hit_region
-                    .lock()
-                    .map(|r| *r)
-                    .unwrap_or_default();
-                pointer.update(&window, region);
+                if backend::POLLS_POINTER {
+                    let region = app
+                        .state::<IslandState>()
+                        .hit_region
+                        .lock()
+                        .map(|r| *r)
+                        .unwrap_or_default();
+                    pointer.update(&window, region);
+                }
 
-                // Slower checks, roughly twice a second.
-                if tick % 15 == 0 {
+                if last_slow.elapsed() >= SLOW_POLL {
+                    last_slow = Instant::now();
+                    let monitors = backend::monitors(&window);
                     if settings::follow_cursor(&app) {
-                        if let Some(monitor) = cursor_monitor(&window) {
+                        let under_cursor = backend::cursor_position(&window)
+                            .and_then(|(x, y)| island::monitor_at(&monitors, x, y));
+                        if let Some(monitor) = under_cursor {
                             if current_monitor != Some(monitor) {
-                                let (x, y) = island::window_position_for(&monitor);
-                                let _ = window.set_position(PhysicalPosition::new(x, y));
+                                move_to(&window, &monitor);
                                 current_monitor = Some(monitor);
                                 pointer.invalidate();
                             }
                         }
                     }
-                    let fullscreen = backend::fullscreen_app_active(&window);
+                    // Keep the monitor fresh if resolution or layout changed.
+                    if let Some(m) = current_monitor {
+                        if !monitors.contains(&m) {
+                            current_monitor =
+                                island::monitor_at(&monitors, m.x as f64 + 1.0, m.y as f64 + 1.0)
+                                    .or_else(|| monitors.first().copied());
+                            if let Some(m) = current_monitor {
+                                move_to(&window, &m);
+                            }
+                        }
+                    }
+                    let fullscreen = current_monitor
+                        .is_some_and(|m| backend::fullscreen_app_active(&window, &m));
                     if fullscreen != suppressed {
                         suppressed = fullscreen;
                         let _ = app.emit(SUPPRESS_EVENT, Flag { value: suppressed });
                     }
                 }
-                tick = tick.wrapping_add(1);
-                thread::sleep(Duration::from_millis(33));
+                thread::sleep(if backend::POLLS_POINTER {
+                    POINTER_POLL
+                } else {
+                    SLOW_POLL
+                });
             }
         });
     if let Err(err) = spawned {
