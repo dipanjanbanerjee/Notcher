@@ -54,6 +54,6 @@
     cursor: pointer;
     transition: background 140ms, color 140ms;
   }
-  button[aria-checked="true"] { background: var(--accent); color: #fff; }
+  button[aria-checked="true"] { background: var(--brand, var(--accent)); color: #fff; box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 60%, transparent); }
   button:disabled { cursor: default; }
 </style>

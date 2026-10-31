@@ -31,6 +31,15 @@ pub fn text<R: Runtime>(app: &AppHandle<R>, key: &str, default: &str) -> String 
         .unwrap_or_else(|| default.to_owned())
 }
 
+/// A number setting written by the web UI.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn number<R: Runtime>(app: &AppHandle<R>, key: &str, default: f64) -> f64 {
+    get(app, key)
+        .and_then(|v| v.as_f64())
+        .filter(|v| v.is_finite())
+        .unwrap_or(default)
+}
+
 /// Keep a history of copied text and images.
 pub fn clipboard_history<R: Runtime>(app: &AppHandle<R>) -> bool {
     get(app, "clipboardHistory")

@@ -3,7 +3,7 @@
  * 2 rows; the media player is two columns wide, everything else one.
  */
 
-export type WidgetId = "clock" | "media" | "focus" | "system" | "clipboard" | "note" | "screen";
+export type WidgetId = "clock" | "media" | "focus" | "system" | "clipboard" | "note" | "screen" | "weather";
 
 export const ALL_WIDGETS: { id: WidgetId; label: string; span: 1 | 2 }[] = [
   { id: "clock", label: "Clock", span: 1 },
@@ -13,6 +13,7 @@ export const ALL_WIDGETS: { id: WidgetId; label: string; span: 1 | 2 }[] = [
   { id: "clipboard", label: "Last copy", span: 1 },
   { id: "note", label: "Note", span: 1 },
   { id: "screen", label: "Screen time", span: 1 },
+  { id: "weather", label: "Weather", span: 1 },
 ];
 
 export const GRID_CELLS = 8;

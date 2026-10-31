@@ -102,6 +102,14 @@ pub fn placement(
     Some((anchor - width - 4, top, width, h))
 }
 
+/// Moves the meter sideways by the user's fine-tuning (physical pixels, positive is
+/// right), keeping it on the taskbar.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn nudged(x: i32, width: i32, offset: i32, taskbar_left: i32, taskbar_right: i32) -> i32 {
+    let max = (taskbar_right - width).max(taskbar_left);
+    (x + offset).clamp(taskbar_left, max)
+}
+
 /// Data used on one day, saved so restarts don't reset it.
 #[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -132,7 +140,7 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 
 #[cfg(windows)]
 mod platform {
-    use super::{placement, DailyUsage, Size, Speed, LABEL, UPDATE_EVENT};
+    use super::{nudged, placement, DailyUsage, Size, Speed, LABEL, UPDATE_EVENT};
     use crate::settings;
     use std::path::PathBuf;
     use std::time::{Duration, Instant};
@@ -245,7 +253,8 @@ mod platform {
         let size = Size::parse(&settings::text(app, "taskbarSpeedSize", "medium"));
         let show_today = settings::flag(app, "taskbarSpeedToday", true);
         let on_left = settings::text(app, "taskbarSpeedPosition", "right") == "left";
-        match target_rect(size.width(show_today), on_left) {
+        let offset = settings::number(app, "taskbarSpeedOffset", 0.0);
+        match target_rect(size.width(show_today), on_left, offset) {
             Some((x, y, w, h)) if !fullscreen_app() => unsafe {
                 // Re-raise above the taskbar every second; clicking the taskbar brings it
                 // back on top of us otherwise.
@@ -311,7 +320,11 @@ mod platform {
         }
     }
 
-    fn target_rect(logical_width: f64, on_left: bool) -> Option<(i32, i32, i32, i32)> {
+    fn target_rect(
+        logical_width: f64,
+        on_left: bool,
+        logical_offset: f64,
+    ) -> Option<(i32, i32, i32, i32)> {
         unsafe {
             let taskbar = FindWindowW(w!("Shell_TrayWnd"), None).ok()?;
             let mut r = RECT::default();
@@ -332,7 +345,9 @@ mod platform {
                     GetWindowRect(start, &mut t).ok().map(|_| t.right)
                 });
             let dpi = GetDpiForWindow(taskbar).max(96);
-            let width = (logical_width * dpi as f64 / 96.0).round() as i32;
+            let scale = dpi as f64 / 96.0;
+            let width = (logical_width * scale).round() as i32;
+            let offset = (logical_offset * scale).round() as i32;
             placement(
                 (r.left, r.top, r.right, r.bottom),
                 tray_left,
@@ -340,6 +355,7 @@ mod platform {
                 width,
                 on_left,
             )
+            .map(|(x, y, w, h)| (nudged(x, w, offset, r.left, r.right), y, w, h))
         }
     }
 
@@ -370,7 +386,7 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{placement, DailyUsage, Size};
+    use super::{nudged, placement, DailyUsage, Size};
 
     #[test]
     fn sits_left_of_the_tray_on_a_bottom_taskbar() {
@@ -417,5 +433,13 @@ mod tests {
         assert!(Size::Large.width(false) > Size::Small.width(false));
         assert!(Size::Medium.width(true) > Size::Medium.width(false));
         assert_eq!(Size::parse("nonsense"), Size::Medium);
+    }
+
+    #[test]
+    fn nudging_moves_the_meter_but_keeps_it_on_the_taskbar() {
+        assert_eq!(nudged(1500, 90, -40, 0, 1920), 1460);
+        assert_eq!(nudged(1500, 90, 25, 0, 1920), 1525);
+        assert_eq!(nudged(1800, 90, 500, 0, 1920), 1830);
+        assert_eq!(nudged(20, 90, -500, 0, 1920), 0);
     }
 }

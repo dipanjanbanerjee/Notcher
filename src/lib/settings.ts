@@ -37,9 +37,18 @@ export interface Settings {
   taskbarSpeedPosition: "left" | "right";
   /** Show how much data was used today next to the speeds. */
   taskbarSpeedToday: boolean;
+  /** Fine-tuning of the meter's place on the taskbar, in pixels (negative is left). */
+  taskbarSpeedOffset: number;
   /** Minutes of PC use between "drink some water" pop-ups; 0 turns them off. */
   waterReminder: number;
+  /** City for the weather; empty means "work it out from my connection". */
+  weatherCity: string;
+  /** Celsius or Fahrenheit for the weather. */
+  tempUnit: "c" | "f";
 }
+
+/** How far the taskbar meter can be nudged either way, in pixels. */
+export const MAX_METER_OFFSET = 600;
 
 /** Choices for the water reminder, in minutes (0 = off). */
 export const WATER_CHOICES = [0, 30, 45, 60, 90, 120] as const;
@@ -61,7 +70,10 @@ export const DEFAULT_SETTINGS: Settings = {
   taskbarSpeedSize: "medium",
   taskbarSpeedPosition: "right",
   taskbarSpeedToday: true,
+  taskbarSpeedOffset: 0,
   waterReminder: 60,
+  weatherCity: "",
+  tempUnit: "c",
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [
@@ -85,6 +97,11 @@ export function sanitize(raw: Record<string, unknown>): Settings {
   if (!THEMES.some((t) => t.id === out.theme)) out.theme = DEFAULT_SETTINGS.theme;
   if (!["small", "medium", "large"].includes(out.taskbarSpeedSize)) out.taskbarSpeedSize = "medium";
   if (out.taskbarSpeedPosition !== "left") out.taskbarSpeedPosition = "right";
+  out.taskbarSpeedOffset = Number.isFinite(out.taskbarSpeedOffset)
+    ? Math.max(-MAX_METER_OFFSET, Math.min(MAX_METER_OFFSET, Math.round(out.taskbarSpeedOffset)))
+    : 0;
+  out.weatherCity = out.weatherCity.trim().slice(0, 80);
+  if (out.tempUnit !== "f") out.tempUnit = "c";
   if (!(WATER_CHOICES as readonly number[]).includes(out.waterReminder)) out.waterReminder = DEFAULT_SETTINGS.waterReminder;
   return out;
 }

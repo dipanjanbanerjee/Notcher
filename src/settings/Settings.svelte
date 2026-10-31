@@ -1,13 +1,16 @@
 <script lang="ts">
+  import logo from "../../assets/icon.svg?url";
   import { onMount } from "svelte";
   import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { getVersion } from "@tauri-apps/api/app";
   import Choice from "./Choice.svelte";
+  import Nudge from "./Nudge.svelte";
   import Toggle from "./Toggle.svelte";
   import { applyShortcut, inTauri, notifySettingsChanged } from "../lib/bridge";
   import {
     DEFAULT_SETTINGS,
     THEMES,
+    MAX_METER_OFFSET,
     WATER_CHOICES,
     applyTheme,
     loadSettings,
@@ -63,7 +66,7 @@
 
 <main>
   <header>
-    <div class="logo" aria-hidden="true"></div>
+    <img class="logo" src={logo} alt="" />
     <div>
       <h1>Notcher</h1>
       <p class="muted">Settings{version ? ` · v${version}` : ""}</p>
@@ -152,6 +155,14 @@
         { id: "right", label: "Right" },
       ]}
       onchange={(v) => update("taskbarSpeedPosition", v)}
+    />
+    <Nudge
+      label="Fine-tune position"
+      hint="Move the meter if it covers taskbar icons or text. Hold an arrow to keep moving."
+      value={settings.taskbarSpeedOffset}
+      max={MAX_METER_OFFSET}
+      disabled={!settings.taskbarSpeed}
+      onchange={(v) => update("taskbarSpeedOffset", v)}
     />
     <Toggle
       label="Today's usage"
@@ -255,10 +266,7 @@
     width: 44px;
     height: 44px;
     border-radius: 14px;
-    background:
-      radial-gradient(circle at 50% 0%, var(--accent) 0 28%, transparent 29%),
-      var(--island-bg);
-    box-shadow: inset 0 0 0 1px var(--hairline), 0 6px 18px var(--shadow);
+    filter: drop-shadow(0 6px 14px rgb(255 95 143 / 0.25));
   }
   h1 { font-size: 20px; }
   h2 {
@@ -339,7 +347,7 @@
     padding: 0 16px;
     border: 0;
     border-radius: 10px;
-    background: var(--accent);
+    background: var(--brand, var(--accent));
     color: #fff;
     cursor: pointer;
   }
