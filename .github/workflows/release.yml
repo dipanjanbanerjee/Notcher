@@ -1,10 +1,18 @@
 name: Release
 
-# Push a tag like v1.0.0 (matching the version in tauri.conf.json) to build the
-# installers and publish them as a GitHub release.
+# Publishes a GitHub release for the version in src-tauri/tauri.conf.json, tagged
+# vX.Y.Z, when that version has no release yet. It runs when the version changes on
+# main, when a vX.Y.Z tag is pushed, or by hand from the Actions tab.
 on:
   push:
+    branches: [main]
+    paths: ["src-tauri/tauri.conf.json", ".github/workflows/release.yml"]
     tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -24,25 +32,37 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Check the tag matches the app version
-        shell: bash
-        run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version"
-            exit 1
-          fi
-      - name: Build installers
-        run: npx tauri build --bundles nsis,msi
-      - name: Publish the release
+      - name: Work out the version to release
+        id: version
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          tag="v$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $tag"
+            exit 1
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Build installers
+        if: steps.version.outputs.skip != 'true'
+        run: npx tauri build --bundles nsis,msi
+      - name: Publish the release
+        if: steps.version.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
           bundle=src-tauri/target/release/bundle
           # A copy with a fixed name, so "latest/download/Notcher-Setup.exe" always works.
           cp "$bundle"/nsis/*-setup.exe Notcher-Setup.exe
-          notes="docs/releases/$GITHUB_REF_NAME.md"
+          notes="docs/releases/$TAG.md"
           if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
-          gh release create "$GITHUB_REF_NAME" --title "Notcher $GITHUB_REF_NAME" "$@" \
+          # Creates the tag on this commit if it doesn't exist yet.
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "Notcher $TAG" "$@" \
             Notcher-Setup.exe "$bundle"/nsis/*.exe "$bundle"/msi/*.msi
