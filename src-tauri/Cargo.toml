@@ -1,6 +1,6 @@
 [package]
 name = "notcher"
-version = "0.3.1"
+version = "0.4.0"
 description = "A fluid island at the top of your screen"
 authors = ["Dipanjan Banerjee"]
 license = "MIT"
@@ -30,6 +30,10 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 sysinfo = { version = "0.40", default-features = false, features = ["system", "disk", "network"] }
 arboard = { version = "3", default-features = false, features = ["image-data", "wayland-data-control"] }
 png = "0.18"
+tiny_http = "0.12"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+getrandom = "0.3"
+tauri-plugin-dialog = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
@@ -70,3 +74,6 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

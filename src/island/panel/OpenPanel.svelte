@@ -1,21 +1,25 @@
 <script lang="ts" module>
-  export type TabId = "home" | "clips" | "jot" | "focus" | "vitals";
+  export type TabId = "home" | "clips" | "jot" | "focus" | "vitals" | "drop";
+  export const TAB_IDS: readonly TabId[] = ["home", "clips", "jot", "focus", "vitals", "drop"];
 </script>
 
 <script lang="ts">
   import Icon, { type IconName } from "../../components/Icon.svelte";
   import { openSettings, type NowPlaying } from "../../lib/bridge";
   import ClipsTab from "./ClipsTab.svelte";
+  import DropTab from "./DropTab.svelte";
   import FocusTab from "./FocusTab.svelte";
   import HomeTab from "./HomeTab.svelte";
   import JotTab from "./JotTab.svelte";
   import VitalsTab from "./VitalsTab.svelte";
 
-  let { track, clock, clock24h, tab = $bindable() }: {
+  let { track, clock, clock24h, tab = $bindable(), dragging = false }: {
     track: NowPlaying | null;
     clock: Date;
     clock24h: boolean;
     tab: TabId;
+    /** Files are being dragged over the island. */
+    dragging?: boolean;
   } = $props();
 
   const TABS: { id: TabId; label: string; icon: IconName }[] = [
@@ -24,6 +28,7 @@
     { id: "jot", label: "Notes", icon: "pen" },
     { id: "focus", label: "Focus", icon: "timer" },
     { id: "vitals", label: "System", icon: "pulse" },
+    { id: "drop", label: "Drop", icon: "beam" },
   ];
 
   let editingHome = $state(false);
@@ -40,8 +45,8 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    // Ctrl+1…5 switches tabs while the island is open.
-    if ((e.ctrlKey || e.metaKey) && /^[1-5]$/.test(e.key)) {
+    // Ctrl+1…6 switches tabs while the island is open.
+    if ((e.ctrlKey || e.metaKey) && /^[1-6]$/.test(e.key)) {
       e.preventDefault();
       go(TABS[Number(e.key) - 1].id);
     }
@@ -88,6 +93,8 @@
           <JotTab />
         {:else if tab === "focus"}
           <FocusTab />
+        {:else if tab === "drop"}
+          <DropTab {dragging} />
         {:else}
           <VitalsTab />
         {/if}

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b0b0f">
+<title>Notcher Drop</title>
+<style>
+  :root {
+    --bg: #0b0b0f; --card: #16161d; --card-2: #1f1f28; --line: rgba(255,255,255,.08);
+    --fg: #f3f3f7; --muted: #9a9aab; --accent: #8b5cf6; --accent-2: #22d3ee; --ok: #34d399; --bad: #f87171;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh; padding: max(18px, env(safe-area-inset-top)) 16px 32px;
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 6px 0 22px; }
+  .island {
+    width: 132px; height: 30px; border-radius: 0 0 16px 16px; background: #000;
+    box-shadow: 0 0 0 1px var(--line), 0 10px 36px -8px var(--accent);
+    display: grid; place-items: center;
+  }
+  .island i { width: 46px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scaleX(.55); opacity: .6; } }
+  h1 { margin: 4px 0 0; font-size: 21px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; margin-bottom: 14px; }
+  h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 600; }
+  .pick {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 22px 12px; border-radius: 16px; border: 1.5px dashed rgba(139,92,246,.55);
+    background: radial-gradient(120% 90% at 50% 0%, rgba(139,92,246,.18), transparent 70%);
+    text-align: center; cursor: pointer; transition: transform .15s ease;
+  }
+  .pick:active { transform: scale(.98); }
+  .pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .pick svg { color: var(--accent); }
+  .pick strong { font-size: 16px; }
+  .pick span { color: var(--muted); font-size: 13px; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  ul:not(:empty) { margin-top: 12px; }
+  li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--card-2); }
+  .ico { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: rgba(139,92,246,.16); color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .meta { flex: 1; min-width: 0; }
+  .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .info { color: var(--muted); font-size: 12.5px; }
+  .bar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.08); margin-top: 6px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s linear; }
+  .done .info { color: var(--ok); }
+  .failed .info { color: var(--bad); }
+  a.get {
+    flex: none; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: #fff;
+    text-decoration: none; font-weight: 600; font-size: 13.5px;
+  }
+  .empty { color: var(--muted); font-size: 13.5px; text-align: center; padding: 6px 0 2px; }
+  .gone { display: none; text-align: center; padding: 18px; border-radius: 16px; background: rgba(248,113,113,.12); color: #fecaca; margin-bottom: 14px; }
+  .gone.show { display: block; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="island"><i></i></div>
+    <h1>Notcher Drop</h1>
+    <div class="sub"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+  </header>
+
+  <div class="gone" id="gone">This session has ended. Start Notcher Drop on your PC and scan the new code.</div>
+
+  <section>
+    <h2>Send to your PC</h2>
+    <label class="pick">
+      <input type="file" id="files" multiple>
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M5 14.5v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>
+      <strong>Choose photos or files</strong>
+      <span>They are saved to Downloads › Notcher Drop</span>
+    </label>
+    <ul id="uploads"></ul>
+  </section>
+
+  <section>
+    <h2>From your PC</h2>
+    <ul id="shared"></ul>
+    <p class="empty" id="nothing">Drop files on the island on your PC and they will show up here.</p>
+  </section>
+
+  <footer>Files go straight from this phone to your PC over your Wi-Fi.</footer>
+</main>
+<script>
+(() => {
+  const key = new URLSearchParams(location.search).get("k") || "";
+  const q = (path, extra = "") => `${path}?k=${encodeURIComponent(key)}${extra}`;
+  const $ = (id) => document.getElementById(id);
+  let ended = false;
+
+  function size(n) {
+    if (!n) return "0 B";
+    const u = ["B", "KB", "MB", "GB"];
+    const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+    return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${u[i]}`;
+  }
+  function ext(name) {
+    const m = /\.([a-z0-9]{1,4})$/i.exec(name);
+    return m ? m[1] : "file";
+  }
+  function row(name) {
+    const li = document.createElement("li");
+    const ico = document.createElement("div");
+    ico.className = "ico";
+    ico.textContent = ext(name);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const n = document.createElement("div");
+    n.className = "name";
+    n.textContent = name;
+    const info = document.createElement("div");
+    info.className = "info";
+    meta.append(n, info);
+    li.append(ico, meta);
+    return { li, meta, info };
+  }
+  function end() {
+    if (ended) return;
+    ended = true;
+    $("gone").classList.add("show");
+    $("dot").classList.add("off");
+    $("status").textContent = "Disconnected";
+  }
+
+  // ---- phone → PC, one file at a time so each gets the full connection
+  const queue = [];
+  let busy = false;
+  $("files").addEventListener("change", (e) => {
+    for (const file of e.target.files) {
+      const r = row(file.name);
+      r.info.textContent = `Waiting · ${size(file.size)}`;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      bar.append(document.createElement("div"));
+      r.meta.append(bar);
+      $("uploads").prepend(r.li);
+      queue.push({ file, r, bar: bar.firstChild });
+    }
+    e.target.value = "";
+    next();
+  });
+  function next() {
+    if (busy || ended) return;
+    const job = queue.shift();
+    if (!job) return;
+    busy = true;
+    const { file, r, bar } = job;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", q("/api/upload", `&name=${encodeURIComponent(file.name)}`));
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const p = e.loaded / e.total;
+      bar.style.width = `${(p * 100).toFixed(1)}%`;
+      r.info.textContent = `${Math.round(p * 100)}% · ${size(e.loaded)} of ${size(e.total)}`;
+    };
+    xhr.onload = () => {
+      busy = false;
+      if (xhr.status === 200) {
+        bar.style.width = "100%";
+        r.li.classList.add("done");
+        r.info.textContent = `Sent · ${size(file.size)}`;
+      } else {
+        r.li.classList.add("failed");
+        r.info.textContent = xhr.status === 403 ? "Session ended" : "Failed, try again";
+        if (xhr.status === 403) end();
+      }
+      next();
+    };
+    xhr.onerror = () => {
+      busy = false;
+      r.li.classList.add("failed");
+      r.info.textContent = "Connection lost";
+      next();
+    };
+    r.info.textContent = `Starting · ${size(file.size)}`;
+    xhr.send(file);
+  }
+
+  // ---- PC → phone
+  let lastShared = "";
+  async function refresh() {
+    if (ended) return;
+    try {
+      const res = await fetch(q("/api/files"), { cache: "no-store" });
+      if (res.status === 403) return end();
+      const data = await res.json();
+      $("status").textContent = `Connected to ${data.pc}`;
+      const sig = JSON.stringify(data.shared);
+      if (sig === lastShared) return;
+      lastShared = sig;
+      const list = $("shared");
+      list.replaceChildren();
+      for (const f of data.shared) {
+        const r = row(f.name);
+        r.info.textContent = size(f.size);
+        const a = document.createElement("a");
+        a.className = "get";
+        a.href = q(`/api/file/${f.id}`);
+        a.download = f.name;
+        a.textContent = "Save";
+        r.li.append(a);
+        list.append(r.li);
+      }
+      $("nothing").style.display = data.shared.length ? "none" : "";
+    } catch {
+      $("status").textContent = "Reconnecting…";
+    }
+  }
+  refresh();
+  setInterval(refresh, 2500);
+})();
+</script>
+</body>
+</html>

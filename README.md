@@ -1,6 +1,6 @@
 # Notcher
 
-A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It gives you music, clipboard history, quick notes, timers and system stats, one hover away, with file transfers and more on the way.
+A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It gives you music, clipboard history, quick notes, timers and system stats, one hover away, and phone-to-PC file transfers by QR code.
 
 > Status: early development (milestone 2). See the [product spec](docs/SPEC.md) for the full plan.
 
@@ -9,12 +9,14 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
 - **The island:** a notch-style shape that hangs from the top of the screen. At rest it shows the date and a live clock with seconds (12-hour with AM/PM, or 24-hour). Hover over it and it springs open into the full panel. Short *live* pop-ups, such as a new song or a finished timer, appear from rest and fold back by themselves. Every animation can be interrupted, and reduced-motion settings are respected.
 - **Click-through:** only the island itself takes the mouse, and everything around it clicks straight through to your apps.
 - **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Windows Media Player…), with play/pause, next and previous. A short *live* activity appears when the track changes.
-- **Open panel with five tabs** (`Ctrl+1` to `Ctrl+5`):
+- **Open panel with six tabs** (`Ctrl+1` to `Ctrl+6`):
   - **Home:** clock, music controls, and quick looks at your timer, system, last copy and latest note. Press the pen button to move, remove or add widgets.
   - **Clipboard:** the last 200 things you copied, text and images, with search and pinning. Click to copy again. Passwords from password managers are never saved.
   - **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
   - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island, and a water reminder can nudge you.
   - **System:** CPU and memory over the last minute, disk and battery.
+  - **Drop:** Notcher Drop, see below.
+- **Notcher Drop:** move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and save files the PC shares. Drag files onto the island to share them. It works over your own Wi-Fi with a one-time key, nothing goes through the internet, and it stops by itself after 10 idle minutes. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
 - **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
 - **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
 - **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
@@ -58,6 +60,7 @@ src-tauri/src/       Rust
   db.rs              SQLite storage for clips and notes
   vitals.rs          CPU, memory, disk, network and battery
   netspeed.rs        the internet speed meter on the taskbar
+  filedrop/          Notcher Drop: local server, QR code and the phone page
 ```
 
 ### Troubleshooting
