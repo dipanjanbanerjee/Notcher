@@ -82,7 +82,7 @@ pub(crate) fn show_settings<R: Runtime>(app: &AppHandle<R>) {
 
 fn create_island<R: Runtime>(
     app: &AppHandle<R>,
-) -> tauri::Result<(WebviewWindow<R>, PlatformMode)> {
+) -> tauri::Result<(WebviewWindow<R>, PlatformMode, Option<island::MonitorRect>)> {
     let window = WebviewWindowBuilder::new(app, "island", WebviewUrl::App("index.html".into()))
         .title("Notcher")
         .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -99,14 +99,15 @@ fn create_island<R: Runtime>(
         .build()?;
 
     let mode = platform::prepare_island(&window);
+    let mut monitor = None;
     if !mode.layer_shell {
-        platform::place_on_best_monitor(&window);
+        monitor = platform::place_on_best_monitor(&window);
         window.show()?;
     }
     // Applied once the window exists on screen. The shared state stays empty so the
     // web UI's first report is always applied too.
     platform::apply_hit_region(&window, STARTUP_REGION);
-    Ok((window, mode))
+    Ok((window, mode, monitor))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -157,7 +158,8 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let (_island, mode) = create_island(&handle)?;
+            settings::first_run_setup(&handle);
+            let (_island, mode, monitor) = create_island(&handle)?;
             if let Err(err) = tray::create(&handle) {
                 log::warn!("tray icon unavailable: {err}");
             }
@@ -166,7 +168,7 @@ pub fn run() {
                 log::warn!("global shortcut unavailable: {err}");
             }
             media::start(handle.clone());
-            platform::start_watcher(handle, mode);
+            platform::start_watcher(handle, mode, monitor);
             Ok(())
         })
         .run(tauri::generate_context!())

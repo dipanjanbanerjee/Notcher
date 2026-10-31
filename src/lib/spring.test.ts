@@ -81,6 +81,16 @@ describe("SpringGroup", () => {
     expect(seen.length).toBeGreaterThan(10);
   });
 
+  it("tells the listener when the motion has settled", () => {
+    const clock = fakeClock();
+    const flags: boolean[] = [];
+    const g = new SpringGroup({ w: 0 }, (_v, settled) => flags.push(settled), clock.env);
+    g.to({ w: 100 });
+    clock.runFrames(600);
+    expect(flags.at(-1)).toBe(true);
+    expect(flags.slice(0, -1).every((f) => !f)).toBe(true);
+  });
+
   it("jumps immediately when instant", () => {
     const clock = fakeClock();
     let last = { w: 0 };

@@ -82,14 +82,14 @@ export class SpringGroup<K extends string> {
   readonly springs: Record<K, Spring>;
   private frame = 0;
   private last = 0;
-  private listener: (values: Record<K, number>) => void;
+  private listener: (values: Record<K, number>, settled: boolean) => void;
   private now: () => number;
   private raf: (cb: FrameRequestCallback) => number;
   private caf: (id: number) => void;
 
   constructor(
     initial: Record<K, number>,
-    listener: (values: Record<K, number>) => void,
+    listener: (values: Record<K, number>, settled: boolean) => void,
     env: {
       now?: () => number;
       raf?: (cb: FrameRequestCallback) => number;
@@ -127,7 +127,7 @@ export class SpringGroup<K extends string> {
     }
     if (instant) {
       this.stop();
-      this.listener(this.values);
+      this.listener(this.values, true);
       return;
     }
     if (!this.frame) {
@@ -149,7 +149,7 @@ export class SpringGroup<K extends string> {
     for (const k in this.springs) {
       if (!this.springs[k].step(dt)) done = false;
     }
-    this.listener(this.values);
     this.frame = done ? 0 : this.raf(this.tick);
+    this.listener(this.values, done);
   };
 }

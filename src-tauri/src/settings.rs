@@ -25,3 +25,20 @@ pub fn shortcut<R: Runtime>(app: &AppHandle<R>) -> String {
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_SHORTCUT.to_owned())
 }
+
+/// On the very first launch, turn on "launch at login" so Notcher is simply there
+/// after a restart. The user can switch it off in Settings.
+pub fn first_run_setup<R: Runtime>(app: &AppHandle<R>) {
+    use tauri_plugin_autostart::ManagerExt;
+    let Ok(store) = app.store(STORE_FILE) else {
+        return;
+    };
+    if store.get("firstRunDone").is_some() {
+        return;
+    }
+    if let Err(err) = app.autolaunch().enable() {
+        log::warn!("could not enable launch at login: {err}");
+    }
+    store.set("firstRunDone", true);
+    let _ = store.save();
+}

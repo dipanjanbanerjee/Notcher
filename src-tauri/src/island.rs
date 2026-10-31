@@ -69,6 +69,11 @@ impl MonitorRect {
     }
 }
 
+/// The monitor containing a point in physical screen pixels.
+pub fn monitor_at(monitors: &[MonitorRect], x: f64, y: f64) -> Option<MonitorRect> {
+    monitors.iter().copied().find(|m| m.contains(x, y))
+}
+
 /// Physical position for the island window so it is centred at the top of `monitor`.
 pub fn window_position_for(monitor: &MonitorRect) -> (i32, i32) {
     let window_w = (WINDOW_WIDTH * monitor.scale).round() as i32;
@@ -86,9 +91,110 @@ pub fn to_window_logical(point: (f64, f64), window_origin: (i32, i32), scale: f6
     )
 }
 
+/// A top-level window as seen by the full-screen check, in physical screen pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StackedWindow {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    /// The window manager reports it as full-screen.
+    pub fullscreen: bool,
+}
+
+impl StackedWindow {
+    fn covers(&self, m: &MonitorRect) -> bool {
+        self.x <= m.x
+            && self.y <= m.y
+            && self.x as i64 + self.width as i64 >= m.x as i64 + m.width as i64
+            && self.y as i64 + self.height as i64 >= m.y as i64 + m.height as i64
+    }
+
+    fn centre_on(&self, m: &MonitorRect) -> bool {
+        m.contains(
+            self.x as f64 + self.width as f64 / 2.0,
+            self.y as f64 + self.height as f64 / 2.0,
+        )
+    }
+}
+
+/// Decides whether the island should step aside: true when the top-most app window on
+/// the island's monitor is full-screen (by state, or by covering the whole monitor, which
+/// is how many games do it).
+///
+/// `windows` is ordered top to bottom and must already exclude the island itself and
+/// windows that are hidden, minimised, on another workspace, or part of the desktop shell.
+/// Looking at the stacking order rather than the focused window keeps the island hidden
+/// even after the island itself was clicked.
+pub fn fullscreen_on_monitor(windows: &[StackedWindow], monitor: &MonitorRect) -> bool {
+    windows
+        .iter()
+        .find(|w| w.centre_on(monitor))
+        .is_some_and(|w| w.fullscreen || w.covers(monitor))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const MONITOR: MonitorRect = MonitorRect {
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+        scale: 1.0,
+    };
+
+    fn win(x: i32, y: i32, width: u32, height: u32, fullscreen: bool) -> StackedWindow {
+        StackedWindow {
+            x,
+            y,
+            width,
+            height,
+            fullscreen,
+        }
+    }
+
+    #[test]
+    fn fullscreen_state_on_top_hides_island() {
+        assert!(fullscreen_on_monitor(
+            &[win(0, 0, 1920, 1080, true)],
+            &MONITOR
+        ));
+    }
+
+    #[test]
+    fn borderless_window_covering_monitor_counts_as_fullscreen() {
+        assert!(fullscreen_on_monitor(
+            &[win(0, 0, 1920, 1080, false)],
+            &MONITOR
+        ));
+    }
+
+    #[test]
+    fn maximised_window_below_top_bar_does_not_hide_island() {
+        assert!(!fullscreen_on_monitor(
+            &[win(0, 32, 1920, 1048, false)],
+            &MONITOR
+        ));
+    }
+
+    #[test]
+    fn only_the_topmost_window_on_this_monitor_matters() {
+        let normal_on_top = [win(100, 100, 800, 600, false), win(0, 0, 1920, 1080, true)];
+        assert!(!fullscreen_on_monitor(&normal_on_top, &MONITOR));
+        let other_monitor_on_top = [win(1920, 0, 1920, 1080, false), win(0, 0, 1920, 1080, true)];
+        assert!(fullscreen_on_monitor(&other_monitor_on_top, &MONITOR));
+    }
+
+    #[test]
+    fn fullscreen_on_another_monitor_is_ignored() {
+        assert!(!fullscreen_on_monitor(
+            &[win(1920, 0, 1920, 1080, true)],
+            &MONITOR
+        ));
+        assert!(!fullscreen_on_monitor(&[], &MONITOR));
+    }
 
     #[test]
     fn clamps_region_into_window() {
