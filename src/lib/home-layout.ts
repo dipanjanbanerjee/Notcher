@@ -57,6 +57,17 @@ export function moveWidget(layout: WidgetId[], id: WidgetId, by: -1 | 1): Widget
   return next;
 }
 
+/** Moves a widget to `index` (used while dragging), shifting the others along. */
+export function placeWidget(layout: WidgetId[], id: WidgetId, index: number): WidgetId[] {
+  const from = layout.indexOf(id);
+  if (from < 0) return layout;
+  const to = Math.max(0, Math.min(layout.length - 1, index));
+  if (to === from) return layout;
+  const next = layout.filter((w) => w !== id);
+  next.splice(to, 0, id);
+  return next;
+}
+
 const KEY = "notcher.home.widgets";
 
 export function loadLayout(): WidgetId[] {

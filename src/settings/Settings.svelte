@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { getVersion } from "@tauri-apps/api/app";
+  import Choice from "./Choice.svelte";
   import Toggle from "./Toggle.svelte";
   import { applyShortcut, inTauri, notifySettingsChanged } from "../lib/bridge";
   import {
@@ -125,9 +126,37 @@
     <h2>Taskbar</h2>
     <Toggle
       label="Internet speed on the taskbar"
-      hint="Upload and download speed next to the tray icons"
+      hint="Upload and download speed on the taskbar"
       checked={settings.taskbarSpeed}
       onchange={(v) => update("taskbarSpeed", v)}
+    />
+    <Choice
+      label="Text size"
+      value={settings.taskbarSpeedSize}
+      disabled={!settings.taskbarSpeed}
+      options={[
+        { id: "small", label: "Small" },
+        { id: "medium", label: "Medium" },
+        { id: "large", label: "Large" },
+      ]}
+      onchange={(v) => update("taskbarSpeedSize", v)}
+    />
+    <Choice
+      label="Position"
+      hint="Left suits a taskbar with centred icons"
+      value={settings.taskbarSpeedPosition}
+      disabled={!settings.taskbarSpeed}
+      options={[
+        { id: "left", label: "Left" },
+        { id: "right", label: "Right" },
+      ]}
+      onchange={(v) => update("taskbarSpeedPosition", v)}
+    />
+    <Toggle
+      label="Today's usage"
+      hint="Data downloaded and uploaded since midnight"
+      checked={settings.taskbarSpeedToday}
+      onchange={(v) => update("taskbarSpeedToday", v)}
     />
   </section>
 
