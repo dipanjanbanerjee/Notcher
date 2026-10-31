@@ -134,3 +134,14 @@ export const onAppNotification = (h: (n: AppNotification) => void) => safeListen
 export const onAudioLevel = (h: (level: number) => void) => safeListen("audio://level", h);
 export const setBeatActive = (active: boolean) => safeInvoke("set_beat_active", { active });
 export const onVitals = (h: (v: Vitals) => void) => safeListen("vitals://update", h);
+
+// ------------------------------------------------------------------ taskbar speed meter
+
+export interface NetSpeed {
+  /** Bytes per second. */
+  rx: number;
+  tx: number;
+  lightTaskbar: boolean;
+}
+
+export const onNetSpeed = (h: (s: NetSpeed) => void) => safeListen("netspeed://update", h);

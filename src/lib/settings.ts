@@ -29,6 +29,8 @@ export interface Settings {
   tuckOnMaximized: boolean;
   /** A soft light under the island that moves with the music. */
   beatGlow: boolean;
+  /** Internet speed meter on the taskbar, next to the tray icons. */
+  taskbarSpeed: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notificationPreview: true,
   tuckOnMaximized: true,
   beatGlow: true,
+  taskbarSpeed: true,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [

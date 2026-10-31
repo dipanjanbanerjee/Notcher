@@ -62,11 +62,18 @@ export const TUCKED: IslandGeometry = { width: 132, height: 6, radius: 3, should
 
 /** Extra hover margin around the resting island so it is easy to reach. */
 export const REST_HOT_ZONE = { sides: 24, bottom: 6 };
+/** A much smaller margin around the tucked tab, to stay out of the app's way. */
+export const TUCKED_HOT_ZONE = { sides: 6, bottom: 3 };
 
 /** Interaction timings in milliseconds. */
 export const TIMING = {
   /** Short enough to feel instant, long enough that a cursor passing by doesn't open it. */
-  hoverIntent: 140,
+  hoverIntent: 130,
+  /**
+   * Over a maximized or full-screen app the tab sits on top of its title bar or tabs,
+   * so the pointer must rest a little longer before the panel opens.
+   */
+  tuckedIntent: 340,
   leaveGrace: 280,
   liveDuration: 3200,
 };

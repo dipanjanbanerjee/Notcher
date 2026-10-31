@@ -33,7 +33,8 @@ use windows::Win32::{
         WindowsAndMessaging::{
             GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
             GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
-            GW_HWNDNEXT, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+            GWL_STYLE, GW_HWNDNEXT, GW_OWNER, WS_CAPTION, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+            WS_EX_TRANSPARENT, WS_POPUP,
         },
     },
 };
@@ -181,6 +182,16 @@ fn is_candidate(hwnd: HWND, own: HWND) -> bool {
         if ex & (WS_EX_TOOLWINDOW.0 | WS_EX_TRANSPARENT.0) != 0 {
             return false;
         }
+        // Menus, dropdowns, tooltips and dialogs belong to an app window. They flash
+        // above a maximized window all the time and must not count as "the app on top",
+        // or the island would pop in and out while you work.
+        if GetWindow(hwnd, GW_OWNER).is_ok_and(|owner| !owner.is_invalid()) {
+            return false;
+        }
+        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+        if style & WS_POPUP.0 != 0 && style & WS_CAPTION.0 == 0 && is_small(hwnd) {
+            return false;
+        }
         let mut cloaked: u32 = 0;
         let _ = DwmGetWindowAttribute(
             hwnd,
@@ -190,6 +201,17 @@ fn is_candidate(hwnd: HWND, own: HWND) -> bool {
         );
         cloaked == 0 && !is_shell_window(hwnd)
     }
+}
+
+/// Borderless popups smaller than about a third of a typical screen (menus, toasts,
+/// autocomplete lists). Borderless full-screen windows are much larger.
+fn is_small(hwnd: HWND) -> bool {
+    let mut r = RECT::default();
+    if unsafe { GetWindowRect(hwnd, &mut r) }.is_err() {
+        return true;
+    }
+    let (w, h) = ((r.right - r.left) as i64, (r.bottom - r.top) as i64);
+    w * h < 800 * 600
 }
 
 /// True when a full-screen app, game or presentation is on top on the island's monitor.

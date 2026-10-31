@@ -21,6 +21,7 @@ export default defineConfig({
       input: {
         island: resolve(import.meta.dirname, "index.html"),
         settings: resolve(import.meta.dirname, "settings.html"),
+        netspeed: resolve(import.meta.dirname, "netspeed.html"),
       },
     },
   },

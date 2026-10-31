@@ -27,6 +27,7 @@
   import {
     GEOMETRY,
     REST_HOT_ZONE,
+    TUCKED_HOT_ZONE,
     TIMING,
     TUCKED,
     transition,
@@ -76,6 +77,8 @@
   const glowOn = $derived(settings.glow && !!track?.playing && !suppressed);
   /** A full-screen app is in front and the island is resting: shrink to a slim tab. */
   const tucked = $derived(suppressed && mode === "rest");
+  /** Rest or live content; the open panel has its own always-mounted layer. */
+  const smallMode = $derived<"rest" | "live">(shownMode === "live" ? "live" : "rest");
 
   /** Where a mode's shape is heading, taking full-screen apps into account. */
   function targetOf(m: IslandMode): IslandGeometry {
@@ -117,7 +120,10 @@
   function reportHitRegion(v: IslandGeometry) {
     // Cover both where the island is and where it is going, so input never lags the shape.
     let region: Rect = union(islandBounds(v, CENTER_X), islandBounds(targetOf(mode), CENTER_X));
-    if (mode === "rest") region = inflate(region, REST_HOT_ZONE.sides, REST_HOT_ZONE.bottom);
+    if (mode === "rest") {
+      const zone = suppressed ? TUCKED_HOT_ZONE : REST_HOT_ZONE;
+      region = inflate(region, zone.sides, zone.bottom);
+    }
     region = snapOut(region);
     if (!sameRect(lastRegion, region)) {
       lastRegion = region;
@@ -164,7 +170,8 @@
     if (hovered) return;
     hovered = true;
     cancel("leave");
-    if (mode !== "open") later("intent", TIMING.hoverIntent, () => dispatch({ type: "hoverIntent" }));
+    const delay = tucked ? TIMING.tuckedIntent : TIMING.hoverIntent;
+    if (mode !== "open") later("intent", delay, () => dispatch({ type: "hoverIntent" }));
   }
 
   function pointerLeave() {
@@ -492,13 +499,13 @@
     <!-- The content is laid out at its final size and only clipped by the growing
          island, so the browser never re-lays it out during the animation. -->
     <div
-      class="content mode-{shownMode}"
-      class:visible={contentVisible}
-      style:width="{GEOMETRY[shownMode].width}px"
-      style:height="{GEOMETRY[shownMode].height}px"
-      style:margin-left="{-GEOMETRY[shownMode].width / 2}px"
+      class="content mode-{smallMode}"
+      class:visible={contentVisible && shownMode !== "open"}
+      style:width="{GEOMETRY[smallMode].width}px"
+      style:height="{GEOMETRY[smallMode].height}px"
+      style:margin-left="{-GEOMETRY[smallMode].width / 2}px"
     >
-      {#if shownMode === "rest"}
+      {#if smallMode === "rest"}
         <div class="rest-row">
           {#if track?.playing}<Equalizer playing size={12} />{/if}
           {#if focus.active}
@@ -512,7 +519,7 @@
             {formatClock(clock, settings.clock24h, true)}{#if !settings.clock24h}<small>{meridiem(clock)}</small>{/if}
           </span>
         </div>
-      {:else if shownMode === "live"}
+      {:else}
         <div class="live-row">
           {#if live.kind === "track" && track}
             <Art src={track.art} size={54} radius={14} />
@@ -553,9 +560,19 @@
             </div>
           {/if}
         </div>
-      {:else if shownMode === "open"}
-        <OpenPanel {track} {clock} clock24h={settings.clock24h} bind:tab />
       {/if}
+    </div>
+    <!-- The panel stays mounted (just hidden) so opening never has to build it
+         mid-animation, which used to cost a dropped frame or two. -->
+    <div
+      class="content mode-open"
+      class:visible={contentVisible && shownMode === "open"}
+      style:width="{GEOMETRY.open.width}px"
+      style:height="{GEOMETRY.open.height}px"
+      style:margin-left="{-GEOMETRY.open.width / 2}px"
+      inert={shownMode !== "open"}
+    >
+      <OpenPanel {track} {clock} clock24h={settings.clock24h} bind:tab />
     </div>
   </div>
 </div>
@@ -648,19 +665,23 @@
     left: 50%;
     contain: layout style paint;
     opacity: 0;
+    visibility: hidden;
     transform: scale(0.96) translateY(-4px);
     transform-origin: 50% 0;
     transition:
       opacity 90ms ease,
-      transform 90ms ease;
+      transform 90ms ease,
+      visibility 0s linear 90ms;
     will-change: opacity, transform;
   }
   .content.visible {
     opacity: 1;
+    visibility: visible;
     transform: none;
     transition:
       opacity 200ms ease,
-      transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
+      transform 320ms cubic-bezier(0.2, 0.9, 0.25, 1.1),
+      visibility 0s;
   }
 
   .rest-row {

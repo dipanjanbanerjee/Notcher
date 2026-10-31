@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "../../components/Icon.svelte";
   import Sparkline from "./Sparkline.svelte";
-  import { formatBytes, formatRate, vitals } from "../../lib/stores/vitals.svelte";
+  import { formatBytes, vitals } from "../../lib/stores/vitals.svelte";
 
   const v = $derived(vitals.current);
   const memPct = $derived(v && v.memTotal ? (v.memUsed / v.memTotal) * 100 : 0);
@@ -26,16 +26,18 @@
       <span class="muted">{formatBytes(v.diskTotal - v.diskUsed)} free of {formatBytes(v.diskTotal)}</span>
     </section>
     <section class="card">
-      <header><span>Network</span></header>
-      <div class="net">
-        <span>↓ {formatRate(v.netRx)}</span>
-        <span>↑ {formatRate(v.netTx)}</span>
-      </div>
+      <header>
+        <span>Battery</span>
+        {#if v.battery}<strong>{Math.round(v.battery.percent)}%</strong>{/if}
+      </header>
       {#if v.battery}
+        <div class="bar"><div style:width="{v.battery.percent}%"></div></div>
         <span class="battery">
-          <Icon name="bolt" size={13} />
-          Battery {Math.round(v.battery.percent)}%{v.battery.charging ? " · charging" : ""}
+          {#if v.battery.charging}<Icon name="bolt" size={13} />{/if}
+          {v.battery.charging ? "Charging" : "On battery"}
         </span>
+      {:else}
+        <span class="battery"><Icon name="bolt" size={13} />Plugged in, no battery</span>
       {/if}
     </section>
   </div>
@@ -56,7 +58,6 @@
   .muted { color: var(--muted); font-size: 11.5px; }
   .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
   .bar div { height: 100%; background: var(--glow, var(--accent)); border-radius: 3px; transition: width 400ms ease; }
-  .net { display: flex; flex-direction: column; font-size: 14px; font-variant-numeric: tabular-nums; }
   .battery { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
   .battery :global(svg) { color: var(--glow, var(--accent)); }
   .empty { margin: auto; color: var(--muted); }
