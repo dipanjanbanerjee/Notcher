@@ -54,6 +54,12 @@ export const GEOMETRY: Record<IslandMode, IslandGeometry> = {
   open: { width: 640, height: 324, radius: 34, shoulder: 16 },
 };
 
+/**
+ * Resting shape while a full-screen app is in front: a slim tab at the top edge that
+ * stays out of the way but can still be hovered to bring the island back.
+ */
+export const TUCKED: IslandGeometry = { width: 132, height: 6, radius: 3, shoulder: 4 };
+
 /** Extra hover margin around the resting island so it is easy to reach. */
 export const REST_HOT_ZONE = { sides: 24, bottom: 6 };
 

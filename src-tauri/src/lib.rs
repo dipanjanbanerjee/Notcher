@@ -49,8 +49,10 @@ fn focus_island<R: Runtime>(window: WebviewWindow<R>) {
     let _ = window.set_focus();
 }
 
+/// Async on purpose: on Windows, creating a window from a synchronous command
+/// deadlocks the event loop (the command runs on the thread that must build it).
 #[tauri::command]
-fn open_settings<R: Runtime>(app: AppHandle<R>) {
+async fn open_settings<R: Runtime>(app: AppHandle<R>) {
     show_settings(&app);
 }
 

@@ -289,6 +289,7 @@ impl X11 {
                 width: geometry.width as u32,
                 height: geometry.height as u32,
                 fullscreen: state.contains(&a.fullscreen),
+                overlay: false,
             };
             out.push(info);
             if enough(&info) {

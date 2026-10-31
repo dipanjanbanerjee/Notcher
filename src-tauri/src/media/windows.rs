@@ -1,6 +1,7 @@
 //! System Media Transport Controls (SMTC) backend for Windows.
 
 use super::{cached_art, data_url, MediaAction, NowPlaying};
+use std::time::{Duration, Instant};
 use windows::{
     Media::Control::{
         GlobalSystemMediaTransportControlsSession as Session,
@@ -11,8 +12,14 @@ use windows::{
     Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED},
 };
 
+/// After a track change, players (browsers especially) update the title first and
+/// the artwork a moment later, sometimes showing their own app icon in between. The
+/// cover is re-read on every poll for this long before it is cached.
+const ART_SETTLE: Duration = Duration::from_secs(12);
+
 pub struct Reader {
     manager: Manager,
+    track_changed_at: Instant,
 }
 
 impl Reader {
@@ -25,19 +32,38 @@ impl Reader {
         let manager = Manager::RequestAsync()
             .and_then(|op| op.get())
             .map_err(|e| e.to_string())?;
-        Ok(Self { manager })
+        Ok(Self {
+            manager,
+            track_changed_at: Instant::now(),
+        })
     }
 
     pub fn read(&mut self, previous: Option<&NowPlaying>) -> Option<NowPlaying> {
         let session = self.manager.GetCurrentSession().ok()?;
-        snapshot(&session, previous).ok().flatten()
+        let (mut now, props) = snapshot(&session).ok().flatten()?;
+        let cached = cached_art(previous, &now);
+        if cached.is_none() {
+            self.track_changed_at = Instant::now();
+        }
+        let settled = self.track_changed_at.elapsed() >= ART_SETTLE;
+        now.art = match cached {
+            Some(art) if settled => art,
+            cached => props
+                .Thumbnail()
+                .ok()
+                .and_then(|thumb| read_thumbnail(&thumb).ok())
+                .flatten()
+                // A failed read keeps the cover we already had for this track.
+                .or(cached.flatten()),
+        };
+        Some(now)
     }
 }
 
-fn snapshot(
-    session: &Session,
-    previous: Option<&NowPlaying>,
-) -> windows::core::Result<Option<NowPlaying>> {
+type Properties = windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties;
+
+/// Everything except the cover art, plus the properties to read the art from.
+fn snapshot(session: &Session) -> windows::core::Result<Option<(NowPlaying, Properties)>> {
     let props = session.TryGetMediaPropertiesAsync()?.get()?;
     let title = props.Title()?.to_string_lossy().trim().to_string();
     if title.is_empty() {
@@ -55,7 +81,7 @@ fn snapshot(
         .map(|(pos, end)| ((pos.max(0) / 10_000) as u64, (end.max(0) / 10_000) as u64))
         .unwrap_or((0, 0));
 
-    let mut now = NowPlaying {
+    let now = NowPlaying {
         title,
         artist: props.Artist()?.to_string_lossy(),
         album: props.AlbumTitle()?.to_string_lossy(),
@@ -65,15 +91,7 @@ fn snapshot(
         duration_ms,
         source: friendly_source(&session.SourceAppUserModelId()?.to_string_lossy()),
     };
-    now.art = match cached_art(previous, &now) {
-        Some(art) => art,
-        None => props
-            .Thumbnail()
-            .ok()
-            .and_then(|thumb| read_thumbnail(&thumb).ok())
-            .flatten(),
-    };
-    Ok(Some(now))
+    Ok(Some((now, props)))
 }
 
 fn read_thumbnail(thumb: &IRandomAccessStreamReference) -> windows::core::Result<Option<String>> {

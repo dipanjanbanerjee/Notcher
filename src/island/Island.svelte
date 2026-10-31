@@ -25,6 +25,7 @@
     GEOMETRY,
     REST_HOT_ZONE,
     TIMING,
+    TUCKED,
     transition,
     type IslandEvent,
     type IslandMode,
@@ -69,6 +70,13 @@
   const path = $derived(islandPath(geometry, CENTER_X));
   const body = $derived(islandBounds({ ...geometry, shoulder: 0 }, CENTER_X));
   const glowOn = $derived(settings.glow && !!track?.playing && !suppressed);
+  /** A full-screen app is in front and the island is resting: shrink to a slim tab. */
+  const tucked = $derived(suppressed && mode === "rest");
+
+  /** Where a mode's shape is heading, taking full-screen apps into account. */
+  function targetOf(m: IslandMode): IslandGeometry {
+    return m === "rest" && suppressed ? TUCKED : GEOMETRY[m];
+  }
   const glowCss = $derived(glowColor ? toCss(glowColor) : null);
 
   // ---------------------------------------------------------------- motion
@@ -96,21 +104,16 @@
 
   function maybeSwapContent(v: IslandGeometry) {
     if (shownMode === mode) return;
-    if (progressToward(GEOMETRY[mode], v) >= CONTENT_SWAP_AT) {
+    if (progressToward(targetOf(mode), v) >= CONTENT_SWAP_AT) {
       shownMode = mode;
       contentVisible = true;
     }
   }
 
   function reportHitRegion(v: IslandGeometry) {
-    let region: Rect;
-    if (suppressed) {
-      region = { x: 0, y: 0, width: 0, height: 0 };
-    } else {
-      // Cover both where the island is and where it is going, so input never lags the shape.
-      region = union(islandBounds(v, CENTER_X), islandBounds(GEOMETRY[mode], CENTER_X));
-      if (mode === "rest") region = inflate(region, REST_HOT_ZONE.sides, REST_HOT_ZONE.bottom);
-    }
+    // Cover both where the island is and where it is going, so input never lags the shape.
+    let region: Rect = union(islandBounds(v, CENTER_X), islandBounds(targetOf(mode), CENTER_X));
+    if (mode === "rest") region = inflate(region, REST_HOT_ZONE.sides, REST_HOT_ZONE.bottom);
     region = snapOut(region);
     if (!sameRect(lastRegion, region)) {
       lastRegion = region;
@@ -121,7 +124,7 @@
   function animateTo(next: IslandMode) {
     swapFrom = { ...geometry };
     if (next !== shownMode) contentVisible = false;
-    springs.to(GEOMETRY[next], next === "rest" ? SPRINGS.close : SPRINGS.shape, reducedMotion.matches);
+    springs.to(targetOf(next), next === "rest" ? SPRINGS.close : SPRINGS.shape, reducedMotion.matches);
     // The listener runs on the next frame; update the region now so expanding never blocks input.
     reportHitRegion(geometry);
   }
@@ -180,7 +183,8 @@
   let live = $state<LiveActivity>({ kind: "track" });
 
   function showLiveActivity(activity: LiveActivity, duration = TIMING.liveDuration) {
-    if (mode !== "rest" && mode !== "live") return;
+    // No pop-ups over a full-screen video, game or presentation.
+    if (suppressed || (mode !== "rest" && mode !== "live")) return;
     live = activity;
     dispatch({ type: "liveStart" });
     later("live", duration, () => dispatch({ type: "liveEnd", hovered }));
@@ -273,6 +277,13 @@
     }
     (window as unknown as { notcher: object }).notcher = {
       dispatch,
+      /** Pretends a full-screen app appeared or went away. */
+      fullscreen: (value: boolean) => {
+        suppressed = value;
+        if (value && mode !== "rest") dispatch({ type: "suppress" });
+        else animateTo(mode);
+        reportHitRegion(geometry);
+      },
       nextTrack: () =>
         receiveTrack({ ...track!, title: "Paper Satellites", artist: "Low Orbit Club", positionMs: 0 }, true),
     };
@@ -319,8 +330,10 @@
     unlisten.push(onToggle(toggle));
     unlisten.push(
       onSuppressed(({ value }) => {
+        if (value === suppressed) return;
         suppressed = value;
-        if (value) dispatch({ type: "suppress" });
+        if (value && mode !== "rest") dispatch({ type: "suppress" });
+        else animateTo(mode); // tuck away or come back
         reportHitRegion(geometry);
       }),
     );
@@ -387,7 +400,7 @@
   });
 </script>
 
-<div class="stage" class:suppressed style:--glow={glowCss}>
+<div class="stage" class:tucked style:--glow={glowCss}>
   <!-- Shadow and glow use box-shadow on a plain box: far cheaper to repaint every
        frame than SVG filters. -->
   <div
@@ -489,9 +502,12 @@
     pointer-events: none;
     transition: opacity 220ms ease, transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .stage.suppressed {
+  .stage.tucked .content {
     opacity: 0;
-    transform: translateY(-12px);
+    transition: opacity 120ms ease;
+  }
+  .stage.tucked .shadow {
+    opacity: 0.4;
   }
   .shape {
     position: absolute;
@@ -579,18 +595,16 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .rest-date {
+  /* Date and time share one quiet style; tabular digits keep the seconds from jiggling. */
+  .rest-date,
+  .rest-time,
+  .rest-time small {
+    font-size: 13px;
+    font-weight: 400;
     color: var(--muted);
-  }
-  .rest-time {
-    font-weight: 600;
-    letter-spacing: 0.01em;
   }
   .rest-time small {
     margin-left: 4px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
   }
   .live-row {
     height: 100%;
