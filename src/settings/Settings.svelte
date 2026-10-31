@@ -6,7 +6,8 @@
   import Choice from "./Choice.svelte";
   import Nudge from "./Nudge.svelte";
   import Toggle from "./Toggle.svelte";
-  import { applyShortcut, inTauri, notifySettingsChanged } from "../lib/bridge";
+  import { applyShortcut, inTauri, installUpdate, notifySettingsChanged } from "../lib/bridge";
+  import { findUpdate, type Release } from "../lib/updates";
   import {
     DEFAULT_SETTINGS,
     THEMES,
@@ -41,6 +42,33 @@
     if (!inTauri) return;
     await saveSetting(key, value);
     await notifySettingsChanged();
+  }
+
+  // ---- updates
+  let updateState = $state<"idle" | "checking" | "latest" | "available" | "installing" | "error">("idle");
+  let release = $state<Release | null>(null);
+  let updateError = $state("");
+
+  async function checkUpdates() {
+    updateState = "checking";
+    updateError = "";
+    try {
+      release = await findUpdate(version || "0");
+      updateState = release ? "available" : "latest";
+    } catch {
+      updateState = "error";
+      updateError = "Couldn't reach GitHub. Check your connection";
+    }
+  }
+
+  async function installNow() {
+    if (!release) return;
+    updateState = "installing";
+    const error = await installUpdate(release.url, release.version);
+    if (error) {
+      updateState = "error";
+      updateError = error;
+    }
   }
 
   async function setLaunchAtLogin(value: boolean) {
@@ -236,6 +264,39 @@
   </section>
 
   <section>
+    <h2>Updates</h2>
+    <div class="update-row">
+      <div class="text">
+        <span class="label">
+          {#if updateState === "available" && release}Notcher {release.version} is available
+          {:else if updateState === "latest"}You're up to date
+          {:else if updateState === "installing"}Downloading and installing…
+          {:else}Notcher {version || ""}{/if}
+        </span>
+        <span class="muted small">
+          {#if updateState === "checking"}Checking…
+          {:else if updateState === "error"}{updateError}
+          {:else if updateState === "available" && release}You have {version}. Notcher closes and reopens to update
+          {:else if updateState === "installing"}Notcher will close and reopen by itself
+          {:else if updateState === "latest"}Version {version} is the newest
+          {:else}New versions come from GitHub Releases{/if}
+        </span>
+      </div>
+      {#if updateState === "available"}
+        <button class="primary" onclick={installNow}>Update now</button>
+      {:else}
+        <button class="secondary" disabled={updateState === "checking" || updateState === "installing" || !inTauri} onclick={checkUpdates}>Check for updates</button>
+      {/if}
+    </div>
+    <Toggle
+      label="Install updates automatically"
+      hint="When Notcher starts, it installs a newer version if there is one"
+      checked={settings.autoUpdate}
+      onchange={(v) => update("autoUpdate", v)}
+    />
+  </section>
+
+  <section>
     <h2>Startup</h2>
     <Toggle
       label="Launch at login"
@@ -351,6 +412,15 @@
     color: #fff;
     cursor: pointer;
   }
+  .update-row { display: flex; align-items: center; gap: 12px; padding: 10px 0 12px; border-bottom: 1px solid var(--hairline); }
+  .update-row .text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .update-row .label { font-weight: 550; }
+  .update-row .primary { height: 34px; }
+  .secondary {
+    font: inherit; font-size: 13px; height: 34px; padding: 0 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--hairline); background: var(--surface-2); color: var(--fg);
+  }
+  .secondary:disabled { opacity: 0.5; cursor: default; }
   .error { color: #ff6b6b; font-size: 12.5px; }
   .ok { color: #3ccf8e; font-size: 12.5px; }
 </style>

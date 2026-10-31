@@ -38,7 +38,7 @@ mod platform {
         System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
     };
 
-    const FRAME: Duration = Duration::from_millis(33);
+    const FRAME: Duration = Duration::from_millis(66);
     const IDLE: Duration = Duration::from_millis(250);
     /// The default output device can change (headphones plugged in), so the meter
     /// is looked up again every few seconds.

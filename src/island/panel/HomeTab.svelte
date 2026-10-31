@@ -36,7 +36,7 @@
     track: NowPlaying | null;
     clock: Date;
     clock24h: boolean;
-    ongo: (tab: "clips" | "focus" | "vitals" | "jot" | "tools") => void;
+    ongo: (tab: "clips" | "focus" | "vitals" | "jot" | "weather") => void;
     editing?: boolean;
   } = $props();
 
@@ -231,7 +231,7 @@
           {/if}
         </button>
       {:else if id === "weather"}
-        <button class="tile small" onclick={() => ongo("tools")}>
+        <button class="tile small" onclick={() => ongo("weather")}>
           <Icon name={weather.now ? (skyIcon(weather.now.code, weather.now.isDay) as IconName) : "sun"} size={16} />
           {#if weather.now}
             <span class="value mono">{formatTemp(weather.now.temp, weather.unit)}</span>

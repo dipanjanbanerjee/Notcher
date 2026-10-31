@@ -60,7 +60,7 @@ mod platform {
         },
     };
 
-    const POLL: Duration = Duration::from_millis(500);
+    const POLL: Duration = Duration::from_millis(1000);
 
     pub fn spawn<R: Runtime>(app: AppHandle<R>) {
         let spawned = std::thread::Builder::new()

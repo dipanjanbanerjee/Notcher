@@ -64,7 +64,7 @@ pub enum MediaAction {
 static LATEST: Mutex<Option<NowPlaying>> = Mutex::new(None);
 
 /// How often the system media service is polled.
-const POLL_INTERVAL: Duration = Duration::from_millis(750);
+const POLL_INTERVAL: Duration = Duration::from_millis(1000);
 
 /// Starts the background watcher thread for the current platform.
 pub fn start<R: Runtime>(app: AppHandle<R>) {

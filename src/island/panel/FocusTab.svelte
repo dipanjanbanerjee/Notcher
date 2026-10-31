@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../../components/Icon.svelte";
+  import Picker from "../../components/Picker.svelte";
   import type { FocusKind } from "../../lib/focus";
   import { focus } from "../../lib/stores/focus.svelte";
   import { formatDuration } from "../../lib/time";
@@ -71,13 +72,19 @@
       </button>
     </div>
 
-    <label class="water">
+    <div class="water">
       <Icon name="drop" size={14} />
       <span>Water reminder</span>
-      <select value={focus.waterEveryMin} onchange={(e) => setWater(Number(e.currentTarget.value))}>
-        {#each WATER_CHOICES as m (m)}<option value={m}>{m === 0 ? "Off" : `Every ${m} min`}</option>{/each}
-      </select>
-    </label>
+      <div class="pick">
+        <Picker
+          label="Water reminder"
+          up
+          options={WATER_CHOICES.map((m) => ({ id: String(m), label: m === 0 ? "Off" : `Every ${m} min` }))}
+          value={String(focus.waterEveryMin)}
+          onchange={(id) => setWater(Number(id))}
+        />
+      </div>
+    </div>
   </div>
 </div>
 
@@ -128,8 +135,5 @@
   .secondary:disabled { opacity: 0.4; cursor: default; }
   .water { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; }
   .water :global(svg) { color: var(--glow, var(--accent)); }
-  select {
-    margin-left: auto; font: inherit; font-size: 12.5px; color: var(--fg);
-    background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 8px; padding: 3px 6px;
-  }
+  .pick { margin-left: auto; width: 140px; }
 </style>
