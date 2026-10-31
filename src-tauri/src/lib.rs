@@ -1,8 +1,12 @@
+mod clipboard;
+mod db;
 mod island;
 mod media;
+mod notes;
 mod platform;
 mod settings;
 mod tray;
+mod vitals;
 
 use island::{HitRegion, IslandState, WINDOW_HEIGHT, WINDOW_WIDTH};
 use platform::PlatformMode;
@@ -70,6 +74,7 @@ pub(crate) fn show_settings<R: Runtime>(app: &AppHandle<R>) {
         return;
     }
     let built = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+        .additional_browser_args(platform::WEBVIEW_ARGS)
         .title("Notcher Settings")
         .inner_size(560.0, 640.0)
         .min_inner_size(480.0, 520.0)
@@ -84,6 +89,7 @@ fn create_island<R: Runtime>(
     app: &AppHandle<R>,
 ) -> tauri::Result<(WebviewWindow<R>, PlatformMode, Option<island::MonitorRect>)> {
     let window = WebviewWindowBuilder::new(app, "island", WebviewUrl::App("index.html".into()))
+        .additional_browser_args(platform::WEBVIEW_ARGS)
         .title("Notcher")
         .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
         .resizable(false)
@@ -155,10 +161,25 @@ pub fn run() {
             apply_shortcut,
             media::media_command,
             media::now_playing,
+            clipboard::clips_list,
+            clipboard::clip_copy,
+            clipboard::clip_set_pinned,
+            clipboard::clip_delete,
+            clipboard::clips_clear,
+            notes::notes_list,
+            notes::note_save,
+            notes::note_delete,
+            vitals::vitals_snapshot,
+            vitals::set_vitals_active,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
             settings::first_run_setup(&handle);
+            let data_dir = handle.path().app_data_dir()?;
+            std::fs::create_dir_all(&data_dir)?;
+            let db = db::Db::open(&data_dir.join("notcher.db"))
+                .map_err(|e| format!("could not open the database: {e}"))?;
+            handle.manage(db);
             let (_island, mode, monitor) = create_island(&handle)?;
             if let Err(err) = tray::create(&handle) {
                 log::warn!("tray icon unavailable: {err}");
@@ -168,6 +189,8 @@ pub fn run() {
                 log::warn!("global shortcut unavailable: {err}");
             }
             media::start(handle.clone());
+            clipboard::start(handle.clone());
+            vitals::start(handle.clone());
             platform::start_watcher(handle, mode, monitor);
             Ok(())
         })

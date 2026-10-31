@@ -61,7 +61,7 @@ export const GEOMETRY: Record<IslandMode, IslandGeometry> = {
   rest: { width: 196, height: 34, radius: 14, shoulder: 10 },
   peek: { width: 300, height: 44, radius: 18, shoulder: 12 },
   live: { width: 380, height: 76, radius: 26, shoulder: 14 },
-  open: { width: 600, height: 248, radius: 34, shoulder: 16 },
+  open: { width: 640, height: 324, radius: 34, shoulder: 16 },
 };
 
 /** Extra hover margin around the resting island so it is easy to reach. */
