@@ -1,0 +1,15 @@
+/* The island window itself must stay fully transparent. */
+html,
+body {
+  background: transparent !important;
+  overflow: hidden;
+}
+
+/* Browser preview only (`?demo`): a wallpaper so the island can be seen. */
+html.preview body {
+  background:
+    radial-gradient(1200px 600px at 20% 110%, #3b5bdb 0%, transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, #c2255c 0%, transparent 55%),
+    #1b1e2b !important;
+  min-height: 100vh;
+}

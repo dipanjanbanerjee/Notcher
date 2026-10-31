@@ -1,0 +1,76 @@
+/* Theme tokens. Every surface reads from these, so a theme is just a set of values. */
+:root,
+:root[data-theme="obsidian"] {
+  --island-bg: #0b0b0d;
+  --fg: #f4f4f6;
+  --bg: #0b0b0d;
+  --muted: #9a9aa6;
+  --accent: #8b7bff;
+  --surface-1: rgb(255 255 255 / 0.05);
+  --surface-2: rgb(255 255 255 / 0.1);
+  --hairline: rgb(255 255 255 / 0.08);
+  --rim: rgb(255 255 255 / 0.07);
+  --shadow: rgb(0 0 0 / 0.45);
+  --window-bg: #141418;
+  color-scheme: dark;
+}
+:root[data-theme="daylight"] {
+  --island-bg: #fbfbfc;
+  --fg: #16161a;
+  --bg: #fbfbfc;
+  --muted: #6b6b76;
+  --accent: #5a48f5;
+  --surface-1: rgb(0 0 0 / 0.04);
+  --surface-2: rgb(0 0 0 / 0.08);
+  --hairline: rgb(0 0 0 / 0.07);
+  --rim: rgb(0 0 0 / 0.08);
+  --shadow: rgb(0 0 0 / 0.18);
+  --window-bg: #f3f3f6;
+  color-scheme: light;
+}
+:root[data-theme="neon"] {
+  --island-bg: #07060f;
+  --fg: #f6f3ff;
+  --bg: #07060f;
+  --muted: #a49cc8;
+  --accent: #00f0c8;
+  --surface-1: rgb(160 120 255 / 0.08);
+  --surface-2: rgb(160 120 255 / 0.16);
+  --hairline: rgb(160 120 255 / 0.18);
+  --rim: rgb(0 240 200 / 0.22);
+  --shadow: rgb(40 0 90 / 0.5);
+  --window-bg: #0e0c1c;
+  color-scheme: dark;
+}
+:root[data-theme="paper"] {
+  --island-bg: #f1ebe0;
+  --fg: #2b2620;
+  --bg: #f1ebe0;
+  --muted: #7d7365;
+  --accent: #c2603a;
+  --surface-1: rgb(60 40 20 / 0.05);
+  --surface-2: rgb(60 40 20 / 0.1);
+  --hairline: rgb(60 40 20 / 0.09);
+  --rim: rgb(60 40 20 / 0.1);
+  --shadow: rgb(60 40 20 / 0.2);
+  --window-bg: #f7f2e9;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", "Cantarell", "Ubuntu", system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+h1, h2, h3, p { margin: 0; }
