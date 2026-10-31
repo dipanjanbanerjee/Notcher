@@ -3,7 +3,7 @@
  * Pure functions only; timing lives in the controller.
  */
 
-import type { IslandGeometry } from "./shape";
+import { inflate, islandBounds, snapOut, union, type IslandGeometry, type Rect } from "./shape";
 
 /**
  * Two sizes the user controls (rest and open) plus short-lived live activities,
@@ -64,6 +64,38 @@ export const TUCKED: IslandGeometry = { width: 132, height: 6, radius: 3, should
 export const REST_HOT_ZONE = { sides: 24, bottom: 6 };
 /** A much smaller margin around the tucked tab, to stay out of the app's way. */
 export const TUCKED_HOT_ZONE = { sides: 6, bottom: 3 };
+
+/**
+ * Margin around the open panel and live pop-ups. The opening spring overshoots by a few
+ * pixels, so without it the pointer could be on the visible panel yet outside its
+ * region, and the panel would close under it. It also means leaving takes a clear move.
+ */
+export const OPEN_HOT_ZONE = { sides: 10, bottom: 10 };
+
+/**
+ * The part of the island window that takes mouse input, in CSS pixels.
+ *
+ * While opening, it covers both the current shape and the destination so input never
+ * lags the motion. While closing, it shrinks straight to the resting shape: if it kept
+ * the old panel's area (plus the rest margin) for the length of the animation, a pointer
+ * resting just outside the panel would count as "back on the island" and open it again,
+ * then count as "gone" and close it, over and over.
+ *
+ * The regions nest (tucked ⊂ rest ⊂ live ⊂ open), so a pointer that leaves the open
+ * panel can never land inside the region of a smaller state.
+ */
+export function inputRegion(
+  current: IslandGeometry,
+  mode: IslandMode,
+  suppressed: boolean,
+  centerX: number,
+): Rect {
+  const resting = mode === "rest";
+  const target = resting && suppressed ? TUCKED : GEOMETRY[mode];
+  const zone = resting ? (suppressed ? TUCKED_HOT_ZONE : REST_HOT_ZONE) : OPEN_HOT_ZONE;
+  const goal = inflate(islandBounds(target, centerX), zone.sides, zone.bottom);
+  return snapOut(resting ? goal : union(islandBounds(current, centerX), goal));
+}
 
 /** Interaction timings in milliseconds. */
 export const TIMING = {

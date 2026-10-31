@@ -73,7 +73,7 @@ mod platform {
                 current = None;
                 if last_sent != 0.0 {
                     last_sent = 0.0;
-                    let _ = app.emit(LEVEL_EVENT, 0.0f32);
+                    let _ = app.emit_to("island", LEVEL_EVENT, 0.0f32);
                 }
                 std::thread::sleep(IDLE);
                 continue;
@@ -93,7 +93,7 @@ mod platform {
                     let v = v.clamp(0.0, 1.0);
                     if (v - last_sent).abs() > 0.004 {
                         last_sent = v;
-                        let _ = app.emit(LEVEL_EVENT, v);
+                        let _ = app.emit_to("island", LEVEL_EVENT, v);
                     }
                 }
                 None => current = None,

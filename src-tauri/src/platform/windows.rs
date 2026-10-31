@@ -11,7 +11,7 @@
 
 use super::{emit_pointer, PlatformMode};
 use crate::island::{fullscreen_on_monitor, MonitorRect, StackedWindow};
-use crate::island::{to_window_logical, HitRegion, WINDOW_WIDTH};
+use crate::island::{hover_changed, to_window_logical, HitRegion, WINDOW_WIDTH};
 use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{Runtime, WebviewWindow};
 use windows::core::BOOL;
@@ -120,6 +120,8 @@ pub struct PointerTracker {
     inside: Option<bool>,
     /// Whether the window currently takes mouse input (and therefore drops).
     accepting: Option<bool>,
+    /// Cursor position on the previous check, in physical pixels.
+    last_cursor: Option<(i32, i32)>,
 }
 
 impl PointerTracker {
@@ -139,6 +141,8 @@ impl PointerTracker {
             (rect.left, rect.top),
             scale,
         );
+        let moved = self.last_cursor != Some((cursor.x, cursor.y));
+        self.last_cursor = Some((cursor.x, cursor.y));
         let inside = region.contains(x, y);
         // Dragging files from Explorer toward the top of the screen: stop being
         // click-through there so Windows offers us the drop. This does not count as
@@ -149,7 +153,7 @@ impl PointerTracker {
             self.accepting = Some(accepting);
             let _ = window.set_ignore_cursor_events(!accepting);
         }
-        if self.inside != Some(inside) {
+        if hover_changed(self.inside, inside, moved) {
             self.inside = Some(inside);
             emit_pointer(window, inside);
         }
@@ -159,6 +163,7 @@ impl PointerTracker {
     pub fn invalidate(&mut self) {
         self.inside = None;
         self.accepting = None;
+        self.last_cursor = None;
     }
 }
 
