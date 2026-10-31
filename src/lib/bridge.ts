@@ -60,3 +60,62 @@ export const onNativePointer = (h: (v: { value: boolean }) => void) =>
   safeListen("island://pointer", h);
 export const onSettingsChanged = (h: () => void) => safeListen("settings://changed", h);
 export const notifySettingsChanged = () => (inTauri ? emit("settings://changed") : undefined);
+
+// ------------------------------------------------------------------ clipboard
+
+export interface Clip {
+  id: number;
+  kind: "text" | "image";
+  text: string | null;
+  /** Thumbnail as a data URL (images only). */
+  image: string | null;
+  width: number;
+  height: number;
+  /** Unix milliseconds of the most recent copy. */
+  createdAt: number;
+  pinned: boolean;
+}
+
+export const clipsList = (query?: string) =>
+  safeInvoke<Clip[]>("clips_list", { query: query?.trim() || null });
+export const clipCopy = (id: number) => safeInvoke("clip_copy", { id });
+export const clipSetPinned = (id: number, pinned: boolean) => safeInvoke("clip_set_pinned", { id, pinned });
+export const clipDelete = (id: number) => safeInvoke("clip_delete", { id });
+export const clipsClear = () => safeInvoke("clips_clear");
+export const onClipAdded = (h: (clip: Clip) => void) => safeListen("clips://added", h);
+
+// ------------------------------------------------------------------ notes
+
+export interface Note {
+  id: number;
+  body: string;
+  pinned: boolean;
+  updatedAt: number;
+}
+
+export const notesList = () => safeInvoke<Note[]>("notes_list");
+export const noteSave = (note: { id: number | null; body: string; pinned: boolean }) =>
+  safeInvoke<Note>("note_save", { note });
+export const noteDelete = (id: number) => safeInvoke("note_delete", { id });
+
+// ------------------------------------------------------------------ system vitals
+
+export interface Vitals {
+  /** Overall CPU use, 0–100. */
+  cpu: number;
+  memUsed: number;
+  memTotal: number;
+  diskUsed: number;
+  diskTotal: number;
+  /** Network throughput in bytes per second. */
+  netRx: number;
+  netTx: number;
+  battery: { percent: number; charging: boolean } | null;
+  /** Last ~60 seconds, oldest first. */
+  cpuHistory: number[];
+  memHistory: number[];
+}
+
+export const vitalsSnapshot = () => safeInvoke<Vitals>("vitals_snapshot");
+export const setVitalsActive = (active: boolean) => safeInvoke("set_vitals_active", { active });
+export const onVitals = (h: (v: Vitals) => void) => safeListen("vitals://update", h);

@@ -4,32 +4,53 @@
 //! the window ignores the mouse entirely until the cursor is over the island. A
 //! watcher polls the cursor position and flips that switch, and tells the web view
 //! about enter/leave because it cannot see the pointer while ignoring it.
+//!
+//! The watcher only uses plain Win32 calls, which are safe from any thread and cost
+//! microseconds. Tauri's window getters would each wait for the UI thread, and doing
+//! that 60 times a second steals time from rendering.
 
 use super::{emit_pointer, PlatformMode};
 use crate::island::{fullscreen_on_monitor, MonitorRect, StackedWindow};
 use crate::island::{to_window_logical, HitRegion};
+use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{Runtime, WebviewWindow};
+use windows::core::BOOL;
 use windows::Win32::{
-    Foundation::{HWND, RECT},
+    Foundation::{HWND, LPARAM, POINT, RECT},
     Graphics::{
         Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED},
         Gdi::{
-            GetMonitorInfoW, MonitorFromWindow, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+            EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO,
+            MONITOR_DEFAULTTONEAREST,
         },
     },
     UI::{
+        HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
         Shell::{
             SHQueryUserNotificationState, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
         },
         WindowsAndMessaging::{
-            GetClassNameW, GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongW,
-            GetWindowRect, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_HWNDNEXT, WS_EX_TOOLWINDOW,
-            WS_EX_TRANSPARENT,
+            GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
+            GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_HWNDNEXT,
+            WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
         },
     },
 };
 
+/// The island's window handle, stored as an integer so the watcher thread can use it.
+static ISLAND_HWND: AtomicIsize = AtomicIsize::new(0);
+
+fn island_hwnd() -> Option<HWND> {
+    match ISLAND_HWND.load(Ordering::Relaxed) {
+        0 => None,
+        raw => Some(HWND(raw as *mut _)),
+    }
+}
+
 pub fn prepare_island<R: Runtime>(window: &WebviewWindow<R>) -> PlatformMode {
+    if let Some(hwnd) = hwnd_of(window) {
+        ISLAND_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+    }
     // Start fully click-through; the watcher enables input once the cursor is on the island.
     let _ = window.set_ignore_cursor_events(true);
     PlatformMode::default()
@@ -41,15 +62,36 @@ pub fn apply_hit_region<R: Runtime>(_window: &WebviewWindow<R>, _region: HitRegi
 /// Windows cannot give the web view per-pixel input, so the watcher polls the cursor.
 pub const POLLS_POINTER: bool = true;
 
-pub fn cursor_position<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)> {
-    window.cursor_position().ok().map(|p| (p.x, p.y))
+/// Cursor position in physical screen pixels.
+pub fn cursor_position<R: Runtime>(_window: &WebviewWindow<R>) -> Option<(f64, f64)> {
+    let mut p = POINT::default();
+    unsafe { GetCursorPos(&mut p) }.ok()?;
+    Some((p.x as f64, p.y as f64))
 }
 
-pub fn monitors<R: Runtime>(window: &WebviewWindow<R>) -> Vec<MonitorRect> {
-    window
-        .available_monitors()
-        .map(|ms| ms.iter().map(super::to_rect).collect())
-        .unwrap_or_default()
+pub fn monitors<R: Runtime>(_window: &WebviewWindow<R>) -> Vec<MonitorRect> {
+    unsafe extern "system" fn collect(
+        monitor: HMONITOR,
+        _hdc: HDC,
+        _rect: *mut RECT,
+        data: LPARAM,
+    ) -> BOOL {
+        let out = &mut *(data.0 as *mut Vec<MonitorRect>);
+        if let Some(rect) = monitor_rect(monitor) {
+            out.push(rect);
+        }
+        BOOL(1)
+    }
+    let mut out: Vec<MonitorRect> = Vec::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            None,
+            None,
+            Some(collect),
+            LPARAM(&mut out as *mut Vec<MonitorRect> as isize),
+        );
+    }
+    out
 }
 
 #[derive(Default)]
@@ -59,14 +101,21 @@ pub struct PointerTracker {
 
 impl PointerTracker {
     pub fn update<R: Runtime>(&mut self, window: &WebviewWindow<R>, region: HitRegion) {
-        let (Ok(cursor), Ok(origin), Ok(scale)) = (
-            window.cursor_position(),
-            window.outer_position(),
-            window.scale_factor(),
-        ) else {
+        let Some(hwnd) = island_hwnd() else { return };
+        let mut cursor = POINT::default();
+        let mut rect = RECT::default();
+        if unsafe { GetCursorPos(&mut cursor) }.is_err()
+            || unsafe { GetWindowRect(hwnd, &mut rect) }.is_err()
+        {
             return;
-        };
-        let (x, y) = to_window_logical((cursor.x, cursor.y), (origin.x, origin.y), scale);
+        }
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        let scale = if dpi > 0 { dpi as f64 / 96.0 } else { 1.0 };
+        let (x, y) = to_window_logical(
+            (cursor.x as f64, cursor.y as f64),
+            (rect.left, rect.top),
+            scale,
+        );
         let inside = region.contains(x, y);
         if self.inside != Some(inside) {
             self.inside = Some(inside);
@@ -108,12 +157,14 @@ fn monitor_rect(monitor: HMONITOR) -> Option<MonitorRect> {
         return None;
     }
     let r = info.rcMonitor;
+    let (mut dpi_x, mut dpi_y) = (96u32, 96u32);
+    let _ = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
     Some(MonitorRect {
         x: r.left,
         y: r.top,
         width: (r.right - r.left).max(0) as u32,
         height: (r.bottom - r.top).max(0) as u32,
-        scale: 1.0,
+        scale: dpi_x.max(1) as f64 / 96.0,
     })
 }
 
@@ -144,10 +195,10 @@ fn is_candidate(hwnd: HWND, own: HWND) -> bool {
 /// Walks the z-order instead of only checking the focused window, so the island stays
 /// hidden even after it was clicked itself.
 pub fn fullscreen_app_active<R: Runtime>(
-    window: &WebviewWindow<R>,
+    _window: &WebviewWindow<R>,
     _monitor: &MonitorRect,
 ) -> bool {
-    let Some(own) = hwnd_of(window) else {
+    let Some(own) = island_hwnd() else {
         return false;
     };
     // Ask Windows directly so the rectangle matches GetWindowRect exactly.

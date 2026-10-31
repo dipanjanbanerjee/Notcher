@@ -116,6 +116,22 @@
   </section>
 
   <section>
+    <h2>Clipboard</h2>
+    <Toggle
+      label="Clipboard history"
+      hint="Keep the last 200 things you copied. Passwords from password managers are skipped."
+      checked={settings.clipboardHistory}
+      onchange={(v) => update("clipboardHistory", v)}
+    />
+    <Toggle
+      label="Copy confirmation"
+      hint="Briefly show “Copied” in the island when you copy something"
+      checked={settings.copyActivity}
+      onchange={(v) => update("copyActivity", v)}
+    />
+  </section>
+
+  <section>
     <h2>Shortcut</h2>
     <form class="shortcut" onsubmit={(e) => { e.preventDefault(); void saveShortcut(); }}>
       <input

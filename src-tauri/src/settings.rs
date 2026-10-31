@@ -18,6 +18,13 @@ pub fn follow_cursor<R: Runtime>(app: &AppHandle<R>) -> bool {
         .unwrap_or(true)
 }
 
+/// Keep a history of copied text and images.
+pub fn clipboard_history<R: Runtime>(app: &AppHandle<R>) -> bool {
+    get(app, "clipboardHistory")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
 /// Global shortcut that opens and closes the island.
 pub fn shortcut<R: Runtime>(app: &AppHandle<R>) -> String {
     get(app, "shortcut")

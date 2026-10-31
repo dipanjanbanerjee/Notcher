@@ -19,6 +19,10 @@ export interface Settings {
   shortcut: string;
   /** Use 24-hour time. */
   clock24h: boolean;
+  /** Keep a history of copied text and images. */
+  clipboardHistory: boolean;
+  /** Briefly show "Copied" in the island when something is copied. */
+  copyActivity: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   followCursor: true,
   shortcut: "CommandOrControl+Alt+Space",
   clock24h: false,
+  clipboardHistory: true,
+  copyActivity: true,
 };
 
 export const THEMES: { id: ThemeName; label: string }[] = [

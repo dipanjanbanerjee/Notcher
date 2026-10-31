@@ -3,7 +3,11 @@
   import Art from "../components/Art.svelte";
   import Equalizer from "../components/Equalizer.svelte";
   import Icon from "../components/Icon.svelte";
-  import NowPlayingCard from "../components/NowPlayingCard.svelte";
+  import OpenPanel, { type TabId } from "./panel/OpenPanel.svelte";
+  import { clips } from "../lib/stores/clips.svelte";
+  import { focus } from "../lib/stores/focus.svelte";
+  import { notes } from "../lib/stores/notes.svelte";
+  import { vitals } from "../lib/stores/vitals.svelte";
   import {
     focusIsland,
     inTauri,
@@ -13,7 +17,6 @@
     onSettingsChanged,
     onSuppressed,
     onToggle,
-    openSettings,
     setHitRegion,
     type NowPlaying,
   } from "../lib/bridge";
@@ -38,7 +41,7 @@
   } from "../lib/shape";
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
   import { SPRINGS, SpringGroup } from "../lib/spring";
-  import { estimatePosition, formatClock, formatDate, meridiem } from "../lib/time";
+  import { formatClock, formatDate, formatDuration } from "../lib/time";
 
   /** Must match WINDOW_WIDTH in src-tauri/src/island.rs. */
   const WINDOW_WIDTH = 760;
@@ -62,9 +65,6 @@
   let now = $state(Date.now());
   let glowColor = $state<RGB | null>(null);
 
-  const positionMs = $derived(
-    track ? estimatePosition(track.positionMs, reportedAt, now, track.playing, track.durationMs) : 0,
-  );
   const clock = $derived(new Date(now));
   const path = $derived(islandPath(geometry, CENTER_X));
   const body = $derived(islandBounds({ ...geometry, shoulder: 0 }, CENTER_X));
@@ -175,10 +175,56 @@
     if (mode === "open") void focusIsland();
   }
 
-  function showLiveActivity() {
+  type LiveActivity =
+    | { kind: "track" }
+    | { kind: "timer"; title: string; detail: string }
+    | { kind: "water" }
+    | { kind: "copied"; text: string };
+  let live = $state<LiveActivity>({ kind: "track" });
+
+  function showLiveActivity(activity: LiveActivity, duration = TIMING.liveDuration) {
     if (mode !== "rest" && mode !== "live") return;
+    live = activity;
     dispatch({ type: "liveStart" });
-    later("live", TIMING.liveDuration, () => dispatch({ type: "liveEnd", hovered }));
+    later("live", duration, () => dispatch({ type: "liveEnd", hovered }));
+  }
+
+  // ---------------------------------------------------------------- tools
+
+  const TAB_KEY = "notcher.tab";
+  let tab = $state<TabId>(readTab());
+  function readTab(): TabId {
+    try {
+      const t = localStorage.getItem(TAB_KEY);
+      if (t === "home" || t === "clips" || t === "jot" || t === "focus" || t === "vitals") return t;
+    } catch {
+      /* storage unavailable */
+    }
+    return "home";
+  }
+  $effect(() => {
+    try {
+      localStorage.setItem(TAB_KEY, tab);
+    } catch {
+      /* not persisted */
+    }
+  });
+  // System stats stream only while the panel is open.
+  $effect(() => {
+    void vitals.setActive(mode === "open");
+  });
+
+  function onTick(t: number) {
+    now = t;
+    const { finished, water } = focus.update(t);
+    if (finished) {
+      const title =
+        finished === "focus" ? "Focus session done" : finished === "countdown" ? "Time's up" : "Break's over";
+      const detail = finished === "focus" ? `${focus.label} started` : finished === "countdown" ? "Your timer finished" : "Ready for the next session";
+      showLiveActivity({ kind: "timer", title, detail }, 5000);
+    } else if (water) {
+      showLiveActivity({ kind: "water" }, 4000);
+    }
   }
 
   // ---------------------------------------------------------------- media
@@ -197,7 +243,7 @@
     }
     track = next;
     reportedAt = Date.now();
-    if (announce && changed && next?.playing && settings.trackChangeActivity) showLiveActivity();
+    if (announce && changed && next?.playing && settings.trackChangeActivity) showLiveActivity({ kind: "track" });
   }
 
   // ---------------------------------------------------------------- browser preview
@@ -219,6 +265,9 @@
       { title: "Midnight Static", artist: "Glass Harbor", album: "Low Tide", art, playing: true, positionMs: 42_000, durationMs: 214_000, source: "Preview" },
       false,
     );
+    seedPreviewData();
+    const t = params.get("tab");
+    if (t === "home" || t === "clips" || t === "jot" || t === "focus" || t === "vitals") tab = t;
     const m = params.get("mode");
     if (m === "open" || m === "peek" || m === "live") {
       mode = m;
@@ -229,6 +278,32 @@
       dispatch,
       nextTrack: () =>
         receiveTrack({ ...track!, title: "Paper Satellites", artist: "Low Orbit Club", positionMs: 0 }, true),
+    };
+  }
+
+  /** Sample clips, notes and stats so every tab has something to show in the preview. */
+  function seedPreviewData() {
+    const t = Date.now();
+    const clip = (id: number, text: string, ago: number, pinned = false) => ({
+      id, kind: "text" as const, text, image: null, width: 0, height: 0, createdAt: t - ago, pinned,
+    });
+    clips.items = [
+      clip(1, "git push -u origin feat/m2-tools", 120_000, true),
+      clip(2, "https://example.com/design/islands-v2", 30_000),
+      clip(3, "Meeting moved to 4:30, same room", 600_000),
+      clip(4, "const spring = { stiffness: 380, damping: 32 };", 3_600_000),
+    ];
+    notes.items = [
+      { id: 1, body: "Today\n[x] Ship clipboard tab\n[ ] Polish focus dial\n[ ] Water plants", pinned: true, updatedAt: t - 60_000 },
+      { id: 2, body: "Ideas\nIsland that shows the next train", pinned: false, updatedAt: t - 7_200_000 },
+    ];
+    notes.select(notes.items[0]);
+    const wave = (base: number, amp: number) =>
+      Array.from({ length: 60 }, (_, i) => Math.max(0, Math.min(100, base + amp * Math.sin(i / 5) + (i % 7) * 1.5)));
+    vitals.current = {
+      cpu: 23, memUsed: 9.4 * 2 ** 30, memTotal: 16 * 2 ** 30, diskUsed: 312 * 2 ** 30, diskTotal: 512 * 2 ** 30,
+      netRx: 1.8 * 2 ** 20, netTx: 220 * 2 ** 10, battery: { percent: 76, charging: false },
+      cpuHistory: wave(22, 12), memHistory: wave(58, 3),
     };
   }
 
@@ -263,7 +338,17 @@
       ),
     );
 
-    const tick = setInterval(() => (now = Date.now()), 250);
+    const tick = setInterval(() => onTick(Date.now()), 250);
+    unlisten.push(vitals.listen());
+    unlisten.push(
+      clips.listen((clip) => {
+        if (settings.copyActivity) {
+          const text = clip.kind === "image" ? `Image ${clip.width}×${clip.height}` : (clip.text ?? "").trim();
+          showLiveActivity({ kind: "copied", text }, 1600);
+        }
+      }),
+    );
+    void clips.refresh();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dispatch({ type: "escape" });
     };
@@ -300,7 +385,7 @@
 
 <div class="stage" class:suppressed style:--glow={glowCss}>
   <!-- Shadow and glow use box-shadow on a plain box: far cheaper to repaint every
-       frame than SVG filters, especially in WebKitGTK. -->
+       frame than SVG filters. -->
   <div
     class="halo"
     style:left="{body.x}px"
@@ -331,12 +416,24 @@
     aria-label="Notcher island"
     aria-expanded={mode === "open"}
   >
-    <div class="content mode-{shownMode}" class:visible={contentVisible}>
+    <!-- The content is laid out at its final size and only clipped by the growing
+         island, so the browser never re-lays it out during the animation. -->
+    <div
+      class="content mode-{shownMode}"
+      class:visible={contentVisible}
+      style:width="{GEOMETRY[shownMode].width}px"
+      style:height="{GEOMETRY[shownMode].height}px"
+      style:margin-left="{-GEOMETRY[shownMode].width / 2}px"
+    >
       {#if shownMode === "rest"}
-        {#if track}
+        {#if track || focus.active}
           <div class="rest-row">
-            <Art src={track.art} size={20} radius={6} />
-            <Equalizer playing={track.playing} size={14} />
+            {#if track}<Art src={track.art} size={20} radius={6} />{:else}<span></span>{/if}
+            {#if focus.active}
+              <span class="rest-timer" class:paused={!focus.running}>{formatDuration(focus.remaining)}</span>
+            {:else if track}
+              <Equalizer playing={track.playing} size={14} />
+            {/if}
           </div>
         {/if}
       {:else if shownMode === "peek"}
@@ -353,30 +450,40 @@
             <span class="muted">{formatDate(clock)}</span>
           {/if}
         </div>
-      {:else if shownMode === "live" && track}
+      {:else if shownMode === "live"}
         <div class="live-row">
-          <Art src={track.art} size={54} radius={14} />
-          <div class="stack">
-            <span class="eyebrow">Now playing</span>
-            <strong>{track.title}</strong>
-            <span class="muted">{track.artist}</span>
-          </div>
-          <Equalizer playing={track.playing} size={20} />
+          {#if live.kind === "track" && track}
+            <Art src={track.art} size={54} radius={14} />
+            <div class="stack">
+              <span class="eyebrow">Now playing</span>
+              <strong>{track.title}</strong>
+              <span class="muted">{track.artist}</span>
+            </div>
+            <Equalizer playing={track.playing} size={20} />
+          {:else if live.kind === "timer"}
+            <span class="badge"><Icon name="timer" size={24} /></span>
+            <div class="stack">
+              <span class="eyebrow">Focus</span>
+              <strong>{live.title}</strong>
+              <span class="muted">{live.detail}</span>
+            </div>
+          {:else if live.kind === "water"}
+            <span class="badge"><Icon name="drop" size={24} /></span>
+            <div class="stack">
+              <span class="eyebrow">Hydrate</span>
+              <strong>Time for some water</strong>
+              <span class="muted">A glass now keeps you sharp</span>
+            </div>
+          {:else if live.kind === "copied"}
+            <span class="badge"><Icon name="copy" size={22} /></span>
+            <div class="stack">
+              <span class="eyebrow">Copied</span>
+              <strong>{live.text}</strong>
+            </div>
+          {/if}
         </div>
       {:else if shownMode === "open"}
-        <div class="open-panel">
-          <header>
-            <div class="time">
-              <span class="clock">{formatClock(clock, settings.clock24h)}</span>
-              {#if !settings.clock24h}<span class="ampm">{meridiem(clock)}</span>{/if}
-            </div>
-            <span class="muted date">{formatDate(clock)}</span>
-            <button class="gear" aria-label="Settings" onclick={(e) => { e.stopPropagation(); void openSettings(); }}>
-              <Icon name="gear" size={18} />
-            </button>
-          </header>
-          <NowPlayingCard {track} {positionMs} />
-        </div>
+        <OpenPanel {track} {clock} clock24h={settings.clock24h} bind:tab />
       {/if}
     </div>
   </div>
@@ -397,6 +504,8 @@
     position: absolute;
     inset: 0;
     overflow: visible;
+    /* Own compositor layer: redrawing the outline never repaints the content. */
+    will-change: transform;
   }
   .fill {
     fill: var(--island-bg);
@@ -409,6 +518,7 @@
   .halo {
     position: absolute;
     top: 0;
+    will-change: transform;
   }
   .halo > div {
     position: absolute;
@@ -446,7 +556,9 @@
   }
   .content {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 50%;
+    contain: layout style paint;
     opacity: 0;
     transform: scale(0.96) translateY(-4px);
     transform-origin: 50% 0;
@@ -531,42 +643,23 @@
   }
   .muted { color: var(--muted); }
 
-  .open-panel {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 22px 20px;
-  }
-  header {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-  .time { display: flex; align-items: baseline; gap: 4px; }
-  .clock {
-    font-size: 34px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-  }
-  .ampm { font-size: 13px; color: var(--muted); }
-  .date { flex: 1; font-size: 13px; }
-  .gear {
-    align-self: center;
+  .badge {
+    width: 54px;
+    height: 54px;
+    flex: none;
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    transition: background 160ms, color 160ms, transform 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    border-radius: 14px;
+    background: var(--surface-2);
+    color: var(--glow, var(--accent));
   }
-  .gear:hover { background: var(--surface-2); color: var(--fg); transform: rotate(60deg); }
-  .gear:focus-visible { outline: 2px solid var(--accent); }
+  .rest-timer {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--glow, var(--accent));
+  }
+  .rest-timer.paused { color: var(--muted); }
 
   @media (prefers-reduced-motion: reduce) {
     .content, .content.visible { transform: none; }

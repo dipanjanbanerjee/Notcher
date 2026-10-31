@@ -26,6 +26,17 @@ pub use linux::before_gtk_init;
 #[cfg(windows)]
 use windows as backend;
 
+/// Extra WebView2 switches for every Notcher window (Windows only).
+///
+/// Chromium pauses or slows pages it believes are hidden behind other windows. A small,
+/// transparent, always-on-top window like the island can be misjudged as hidden,
+/// which shows up as stalled or stuttering animations. These switches keep it
+/// rendering at full rate. All windows must share the same switches because they
+/// share one WebView2 profile; the first three are WebView2's own defaults.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion \
+--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
+
 /// Must run before Tauri initialises the windowing toolkit.
 #[cfg(not(target_os = "linux"))]
 pub fn before_gtk_init() {}
@@ -95,8 +106,9 @@ fn primary_monitor<R: Runtime>(window: &WebviewWindow<R>) -> Option<MonitorRect>
         .map(to_rect)
 }
 
-/// How often the cursor is checked for click-through (Windows only).
-const POINTER_POLL: Duration = Duration::from_millis(33);
+/// How often the cursor is checked for click-through (Windows only). About one frame
+/// at 60 Hz, so hovering reacts as fast as the screen can show it.
+const POINTER_POLL: Duration = Duration::from_millis(16);
 /// How often monitors and full-screen apps are checked.
 const SLOW_POLL: Duration = Duration::from_millis(400);
 

@@ -15,7 +15,7 @@
       <img {src} alt="" draggable="false" onerror={() => (failed = true)} />
     {/key}
   {:else}
-    <Icon name="note" size={Math.round(size * 0.5)} filled={false} />
+    <Icon name="note" size={Math.round(size * 0.5)} />
   {/if}
 </span>
 
