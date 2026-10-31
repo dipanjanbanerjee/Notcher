@@ -16,7 +16,7 @@ A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It
   - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island, and a water reminder can nudge you.
   - **System:** CPU and memory over the last minute, disk and battery.
   - **Drop:** Notcher Drop, see below.
-- **Notcher Drop:** move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and save files the PC shares. Drag files onto the island to share them. It works over your own Wi-Fi with a one-time key, nothing goes through the internet, and it stops by itself after 10 idle minutes. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
+- **Notcher Drop:** move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and save files the PC shares. Drag files onto the island to share them, even when it's tucked away. The Drop tab shows which phone is connected, live transfer speed and photo previews. It works over your own Wi-Fi with a one-time key, nothing goes through the internet, and it stops by itself after 10 idle minutes. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
 - **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
 - **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
 - **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
@@ -67,6 +67,7 @@ src-tauri/src/       Rust
 
 - **The island doesn't appear:** check that the WebView2 runtime is installed (Settings → Apps → "Microsoft Edge WebView2 Runtime"). The installer fetches it if it's missing.
 - **Logs:** `%LOCALAPPDATA%\app.notcher.desktop\logs`.
+- **Windows Defender or SmartScreen flags the installer:** Notcher isn't code-signed yet, and Defender's machine-learning check sometimes flags new unsigned apps (detections ending in `!ml`). Report it as a false positive at https://www.microsoft.com/en-us/wdsi/filesubmission.
 
 ## License
 

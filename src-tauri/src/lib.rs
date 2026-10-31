@@ -184,12 +184,12 @@ pub fn run() {
             filedrop::drop_state,
             filedrop::drop_share,
             filedrop::drop_unshare,
+            filedrop::drop_thumb,
             filedrop::drop_clear_received,
             filedrop::drop_open,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            settings::first_run_setup(&handle);
             let data_dir = handle.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let db = db::Db::open(&data_dir.join("notcher.db"))

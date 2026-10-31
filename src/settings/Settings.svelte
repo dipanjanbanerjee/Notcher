@@ -214,7 +214,12 @@
 
   <section>
     <h2>Startup</h2>
-    <Toggle label="Launch at login" checked={launchAtLogin} onchange={setLaunchAtLogin} />
+    <Toggle
+      label="Launch at login"
+      hint="Start Notcher when you sign in to Windows"
+      checked={launchAtLogin}
+      onchange={setLaunchAtLogin}
+    />
   </section>
 </main>
 

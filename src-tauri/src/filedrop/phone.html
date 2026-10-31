@@ -32,17 +32,19 @@
   .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
   section { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; margin-bottom: 14px; }
   h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 600; }
+  .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pick {
-    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 22px 12px; border-radius: 16px; border: 1.5px dashed rgba(139,92,246,.55);
-    background: radial-gradient(120% 90% at 50% 0%, rgba(139,92,246,.18), transparent 70%);
-    text-align: center; cursor: pointer; transition: transform .15s ease;
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 20px 10px; border-radius: 18px; border: 1px solid rgba(139,92,246,.35);
+    background: radial-gradient(120% 100% at 50% 0%, rgba(139,92,246,.22), rgba(139,92,246,.04) 75%);
+    text-align: center; cursor: pointer; transition: transform .15s ease, background .2s;
   }
+  .note { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: 12.5px; }
+  .thumb { flex: none; width: 34px; height: 34px; border-radius: 10px; object-fit: cover; }
   .pick:active { transform: scale(.98); }
   .pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .pick svg { color: var(--accent); }
-  .pick strong { font-size: 16px; }
-  .pick span { color: var(--muted); font-size: 13px; }
+  .pick strong { font-size: 15px; }
   ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   ul:not(:empty) { margin-top: 12px; }
   li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--card-2); }
@@ -76,12 +78,19 @@
 
   <section>
     <h2>Send to your PC</h2>
-    <label class="pick">
-      <input type="file" id="files" multiple>
-      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M5 14.5v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>
-      <strong>Choose photos or files</strong>
-      <span>They are saved to Downloads › Notcher Drop</span>
-    </label>
+    <div class="picks">
+      <label class="pick">
+        <input type="file" id="media" accept="image/*,video/*" multiple>
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5h15v13h-15zM4.5 15.5l4.5-4.5 4 4 2.5-2.5 4 4M15 9.5h.01"/></svg>
+        <strong>Photos &amp; videos</strong>
+      </label>
+      <label class="pick">
+        <input type="file" id="files" multiple>
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l4.5 4.5v12.5H7zM14 3.5V8h4.5M9.5 12.5h6M9.5 16h6"/></svg>
+        <strong>Files</strong>
+      </label>
+    </div>
+    <p class="note">Saved on your PC in Downloads › Notcher Drop</p>
     <ul id="uploads"></ul>
   </section>
 
@@ -137,9 +146,16 @@
   // ---- phone → PC, one file at a time so each gets the full connection
   const queue = [];
   let busy = false;
-  $("files").addEventListener("change", (e) => {
+  const onPick = (e) => {
     for (const file of e.target.files) {
       const r = row(file.name);
+      if (/^image\//.test(file.type)) {
+        const img = document.createElement("img");
+        img.className = "thumb";
+        img.alt = "";
+        img.src = URL.createObjectURL(file);
+        r.li.firstChild.replaceWith(img);
+      }
       r.info.textContent = `Waiting · ${size(file.size)}`;
       const bar = document.createElement("div");
       bar.className = "bar";
@@ -150,7 +166,9 @@
     }
     e.target.value = "";
     next();
-  });
+  };
+  $("files").addEventListener("change", onPick);
+  $("media").addEventListener("change", onPick);
   function next() {
     if (busy || ended) return;
     const job = queue.shift();
@@ -159,18 +177,22 @@
     const { file, r, bar } = job;
     const xhr = new XMLHttpRequest();
     xhr.open("POST", q("/api/upload", `&name=${encodeURIComponent(file.name)}`));
+    const started = performance.now();
     xhr.upload.onprogress = (e) => {
       if (!e.lengthComputable) return;
       const p = e.loaded / e.total;
+      const secs = Math.max(0.001, (performance.now() - started) / 1000);
+      const rate = e.loaded / secs;
+      const left = rate > 0 ? Math.ceil((e.total - e.loaded) / rate) : 0;
       bar.style.width = `${(p * 100).toFixed(1)}%`;
-      r.info.textContent = `${Math.round(p * 100)}% · ${size(e.loaded)} of ${size(e.total)}`;
+      r.info.textContent = `${Math.round(p * 100)}% · ${size(rate)}/s${left > 1 ? ` · ${left}s left` : ""}`;
     };
     xhr.onload = () => {
       busy = false;
       if (xhr.status === 200) {
         bar.style.width = "100%";
         r.li.classList.add("done");
-        r.info.textContent = `Sent · ${size(file.size)}`;
+        r.info.textContent = `Sent ✓ · ${size(file.size)}`;
       } else {
         r.li.classList.add("failed");
         r.info.textContent = xhr.status === 403 ? "Session ended" : "Failed, try again";

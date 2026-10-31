@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open as pickFiles } from "@tauri-apps/plugin-dialog";
-  import Icon from "../../components/Icon.svelte";
+  import { onMount } from "svelte";
+  import Icon, { type IconName } from "../../components/Icon.svelte";
   import { inTauri } from "../../lib/bridge";
   import { drop } from "../../lib/stores/drop.svelte";
   import { formatBytes } from "../../lib/stores/vitals.svelte";
@@ -8,211 +9,308 @@
   let { dragging = false }: { dragging?: boolean } = $props();
 
   const s = $derived(drop.state);
-  const host = $derived(s.url ? s.url.replace(/^http:\/\//, "").replace(/\/\?.*$/, "") : "");
 
-  async function addFiles() {
+  // A clock for "connected" and "2 min ago"; the phone checks in every 2.5 s.
+  let now = $state(Date.now());
+  onMount(() => {
+    const t = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(t);
+  });
+  const connected = $derived(!!s.device && now - s.deviceSeenAt < 8_000);
+
+  type Item = {
+    key: string;
+    id: number;
+    dir: "in" | "out";
+    name: string;
+    size: number;
+    at: number;
+    progress: number | null;
+    meta: string;
+    failed: boolean;
+    done: boolean;
+  };
+
+  const items = $derived.by<Item[]>(() => {
+    const phone = s.device ?? "phone";
+    const incoming = s.received.map<Item>((r) => {
+      const receiving = r.status === "receiving";
+      const meta = receiving
+        ? `${formatBytes(r.done)} of ${formatBytes(r.size)}${r.rate ? ` · ${formatBytes(r.rate)}/s` : ""}`
+        : r.status === "failed"
+          ? "Didn't finish"
+          : `From ${phone} · ${formatBytes(r.size)} · ${ago(r.at)}`;
+      return {
+        key: `in-${r.id}`,
+        id: r.id,
+        dir: "in",
+        name: r.name,
+        size: r.size,
+        at: r.at,
+        progress: receiving ? (r.size ? r.done / r.size : 0) : null,
+        meta,
+        failed: r.status === "failed",
+        done: r.status === "done",
+      };
+    });
+    const outgoing = s.shared.map<Item>((f) => ({
+      key: `out-${f.id}`,
+      id: f.id,
+      dir: "out",
+      name: f.name,
+      size: f.size,
+      at: f.at,
+      progress: null,
+      meta: `To ${phone} · ${formatBytes(f.size)} · ${f.downloads ? (f.downloads === 1 ? "Saved" : `Saved ${f.downloads}×`) : "Ready"}`,
+      failed: false,
+      done: f.downloads > 0,
+    }));
+    return [...incoming, ...outgoing].sort((a, b) => b.at - a.at);
+  });
+
+  $effect(() => {
+    drop.loadThumbs(items.filter((it) => it.done || it.dir === "out"));
+  });
+
+  function ago(t: number) {
+    const sec = Math.max(0, (now - t) / 1000);
+    if (sec < 45) return "just now";
+    if (sec < 3600) return `${Math.round(sec / 60)} min ago`;
+    return `${Math.round(sec / 3600)} h ago`;
+  }
+
+  const KINDS: { re: RegExp; icon: IconName; hue: string }[] = [
+    { re: /\.(png|jpe?g|webp|gif|bmp|heic|heif|svg|raw|dng)$/i, icon: "image", hue: "#f472b6" },
+    { re: /\.(mp4|mov|mkv|avi|webm|m4v|3gp)$/i, icon: "film", hue: "#a78bfa" },
+    { re: /\.(mp3|m4a|wav|flac|aac|ogg|opus)$/i, icon: "note", hue: "#fb923c" },
+    { re: /\.(zip|rar|7z|tar|gz|apk)$/i, icon: "box", hue: "#facc15" },
+    { re: /\.(pdf|docx?|pptx?|xlsx?|txt|md|csv|rtf|odt)$/i, icon: "doc", hue: "#60a5fa" },
+  ];
+  const kind = (name: string) => KINDS.find((k) => k.re.test(name)) ?? { icon: "doc" as IconName, hue: "#94a3b8" };
+
+  async function browse() {
     if (!inTauri) return drop.share(["Holiday photos.zip"]);
-    const picked = await pickFiles({ multiple: true, directory: false, title: "Share with your phone" }).catch(() => null);
+    const picked = await pickFiles({ multiple: true, directory: false, title: "Send to your phone" }).catch(() => null);
     if (!picked) return;
     await drop.share(Array.isArray(picked) ? picked : [picked]);
   }
 
-  function ext(name: string) {
-    const m = /\.([a-z0-9]{1,4})$/i.exec(name);
-    return m ? m[1] : "file";
-  }
+  // Progress ring geometry.
+  const R = 17;
+  const C = 2 * Math.PI * R;
 </script>
 
 <div class="drop" class:dragging>
   {#if !s.active}
-    <div class="intro">
-      <div class="visual" aria-hidden="true">
-        <span class="dev phone"><Icon name="phone" size={30} /></span>
-        <span class="wave"><i></i><i></i><i></i></span>
-        <span class="dev pc"><Icon name="beam" size={30} /></span>
+    <div class="paused">
+      <span class="orb" aria-hidden="true"><Icon name="beam" size={26} /></span>
+      <div>
+        <h3>Notcher Drop is paused</h3>
+        {#if s.error}
+          <p class="error">{s.error}</p>
+        {:else}
+          <p>Send files between your phone and this PC over Wi-Fi.</p>
+        {/if}
       </div>
-      <div class="copy">
-        <h3>Notcher Drop</h3>
-        <p>Send photos and files between your phone and this PC. No app or cable, just the same Wi-Fi.</p>
-        {#if s.error}<p class="error">{s.error}</p>{/if}
-        <div class="row">
-          <button class="primary" disabled={drop.starting} onclick={() => drop.start()}>
-            {drop.starting ? "Starting…" : "Show QR code"}
-          </button>
-          <button class="ghost" onclick={addFiles}><Icon name="plus" size={14} />Share files</button>
-        </div>
-        <span class="hint">Tip: drag files onto the island to share them.</span>
-      </div>
+      <button class="primary" disabled={drop.starting} onclick={() => drop.start()}>
+        {drop.starting ? "Starting…" : s.error ? "Try again" : "Show QR code"}
+      </button>
     </div>
   {:else}
     <div class="live">
-      <div class="code">
-        <div class="qr">
-          {#if s.qr}<img src={s.qr} alt="QR code for Notcher Drop" />{/if}
+      <aside class="pair" class:connected>
+        <div class="ring">
+          <div class="qr">{#if s.qr}<img src={s.qr} alt="QR code for Notcher Drop" />{/if}</div>
         </div>
-        <strong>Scan with your phone</strong>
-        <span class="addr" title="Phone and PC must be on the same Wi-Fi. If Windows asks, allow Notcher on private networks.">Same Wi-Fi · {host}</span>
-        <button class="link" onclick={() => drop.stop()}>Stop sharing</button>
-      </div>
-      <div class="lists">
-        <section>
-          <header>
-            <span>From your phone</span>
-            <span class="actions">
-              {#if s.received.some((r) => r.status !== "receiving")}
-                <button class="mini" onclick={() => drop.clearReceived()}>Clear</button>
-              {/if}
-              <button class="mini" title={s.folder} onclick={() => drop.open(null)}><Icon name="folder" size={13} />Folder</button>
-            </span>
-          </header>
-          {#each s.received as r (r.id)}
-            <div class="item {r.status}">
-              <span class="badge">{ext(r.name)}</span>
-              <div class="meta">
-                <span class="name">{r.name}</span>
-                {#if r.status === "receiving"}
-                  <div class="bar"><div style:width="{r.size ? (r.done / r.size) * 100 : 0}%"></div></div>
-                {:else if r.status === "done"}
-                  <span class="info">{formatBytes(r.size)}</span>
+        <span class="status">
+          <i></i>{connected ? `${s.device} connected` : "Waiting for your phone"}
+        </span>
+        <span class="hint">{connected ? "Send from your phone" : "Scan with your camera"}</span>
+        <div class="tools">
+          <button title="Open the Notcher Drop folder" onclick={() => drop.open(null)}><Icon name="folder" size={14} />Folder</button>
+          <button title="Stop sharing" onclick={() => drop.stop()}><Icon name="stop" size={12} />Stop</button>
+        </div>
+      </aside>
+
+      <section class="feed">
+        <button class="zone" onclick={browse}>
+          <span class="zone-icon"><Icon name="upload" size={16} /></span>
+          <span><strong>Drop files here</strong> or browse to send them to your phone</span>
+        </button>
+
+        <div class="list">
+          {#each items as it (it.key)}
+            {@const k = kind(it.name)}
+            {@const thumb = drop.thumbs[it.id] ?? null}
+            <div class="item" class:failed={it.failed} style:--hue={k.hue}>
+              <span class="tile">
+                {#if thumb}
+                  <img src={thumb} alt="" />
                 {:else}
-                  <span class="info">Didn't finish</span>
+                  <Icon name={k.icon} size={17} />
                 {/if}
-              </div>
-              {#if r.status === "done"}
-                <button class="icon" title="Open" aria-label="Open {r.name}" onclick={() => drop.open(r.id)}><Icon name="external" size={14} /></button>
-                <button class="icon" title="Show in folder" aria-label="Show {r.name} in folder" onclick={() => drop.open(r.id, true)}><Icon name="folder" size={14} /></button>
-              {:else if r.status === "receiving"}
-                <span class="pct">{r.size ? Math.round((r.done / r.size) * 100) : 0}%</span>
-              {/if}
-            </div>
-          {:else}
-            <p class="empty">Files you send from your phone are saved to Downloads › Notcher Drop.</p>
-          {/each}
-        </section>
-        <section>
-          <header>
-            <span>To your phone</span>
-            <span class="actions"><button class="mini" onclick={addFiles}><Icon name="plus" size={13} />Add</button></span>
-          </header>
-          {#each s.shared as f (f.id)}
-            <div class="item">
-              <span class="badge">{ext(f.name)}</span>
+                {#if it.progress !== null}
+                  <svg class="ring-progress" viewBox="0 0 40 40" aria-hidden="true">
+                    <circle cx="20" cy="20" r={R} />
+                    <circle class="bar" cx="20" cy="20" r={R} stroke-dasharray={C} stroke-dashoffset={C * (1 - it.progress)} />
+                  </svg>
+                {/if}
+              </span>
               <div class="meta">
-                <span class="name">{f.name}</span>
-                <span class="info">{formatBytes(f.size)}</span>
+                <span class="name">{it.name}</span>
+                <span class="sub">{it.meta}</span>
               </div>
-              <button class="icon" title="Stop sharing" aria-label="Stop sharing {f.name}" onclick={() => drop.unshare(f.id)}><Icon name="close" size={13} /></button>
+              <span class="dir {it.dir}" title={it.dir === "in" ? "From your phone" : "To your phone"}>
+                <Icon name={it.dir === "in" ? "arrowDown" : "arrowUp"} size={12} />
+              </span>
+              <span class="actions">
+                {#if it.dir === "in" && it.done}
+                  <button title="Open" aria-label="Open {it.name}" onclick={() => drop.open(it.id)}><Icon name="external" size={14} /></button>
+                  <button title="Show in folder" aria-label="Show {it.name} in folder" onclick={() => drop.open(it.id, true)}><Icon name="folder" size={14} /></button>
+                {:else if it.dir === "out"}
+                  <button title="Stop sharing" aria-label="Stop sharing {it.name}" onclick={() => drop.unshare(it.id)}><Icon name="close" size={13} /></button>
+                {/if}
+              </span>
             </div>
           {:else}
-            <p class="empty">Drag files onto the island or add them here, then tap Save on your phone.</p>
+            <p class="empty">Nothing here yet. Files you send or receive show up here.</p>
           {/each}
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   {/if}
   <div class="catch" aria-hidden="true">
-    <Icon name="upload" size={30} />
-    <strong>Drop to share with your phone</strong>
+    <span class="catch-icon"><Icon name="upload" size={26} /></span>
+    <strong>Drop to send to your phone</strong>
+    <span>{connected ? `${s.device} can save them right away` : "Scan the code with your phone to get them"}</span>
   </div>
 </div>
 
 <style>
   .drop { position: relative; height: 100%; }
-  h3 { margin: 0; font-size: 18px; }
-  p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+  h3 { margin: 0; font-size: 15px; }
+  p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
   button { font: inherit; cursor: pointer; }
+  .error { color: #ff8a8a; }
 
-  /* ---- before a session */
-  .intro { height: 100%; display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 24px; padding: 0 6px; }
-  .visual {
-    height: 170px; border-radius: 22px; background: var(--surface-1);
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    box-shadow: inset 0 0 0 1px var(--hairline);
+  /* ---- paused */
+  .paused { height: 100%; display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .orb {
+    width: 54px; height: 54px; border-radius: 18px; display: grid; place-items: center;
+    color: var(--glow, var(--accent)); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--hairline);
   }
-  .dev { width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: var(--surface-2); color: var(--fg); }
-  .pc { color: var(--glow, var(--accent)); }
-  .wave { display: flex; gap: 5px; }
-  .wave i { width: 6px; height: 6px; border-radius: 50%; background: var(--glow, var(--accent)); animation: hop 1.4s ease-in-out infinite; }
-  .wave i:nth-child(2) { animation-delay: 0.15s; }
-  .wave i:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes hop { 0%, 60%, 100% { opacity: 0.25; transform: translateX(0); } 30% { opacity: 1; transform: translateX(3px); } }
-  .copy { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-  .row { display: flex; gap: 8px; margin-top: 4px; }
   .primary {
-    height: 34px; padding: 0 16px; border: 0; border-radius: 11px;
+    height: 34px; padding: 0 16px; border: 0; border-radius: 11px; margin-left: 8px;
     background: var(--glow, var(--accent)); color: #fff; font-weight: 600; font-size: 13px;
     transition: transform 140ms, filter 140ms;
   }
   .primary:hover { filter: brightness(1.1); }
   .primary:active { transform: scale(0.96); }
   .primary:disabled { opacity: 0.6; cursor: default; }
-  .ghost {
-    display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
-    border: 0; border-radius: 11px; background: var(--surface-2); color: var(--fg); font-size: 13px;
-  }
-  .ghost:hover { background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--hairline); }
-  .hint { font-size: 11.5px; color: var(--muted); }
-  .error { color: #ff8a8a; }
 
-  /* ---- during a session */
-  .live { height: 100%; display: grid; grid-template-columns: 172px 1fr; gap: 14px; }
-  .code { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-  .qr {
-    width: 150px; height: 150px; padding: 9px; border-radius: 18px; background: #fff;
-    box-shadow: 0 8px 26px -10px var(--glow, var(--accent));
-    animation: qr-in 380ms cubic-bezier(0.2, 0.9, 0.25, 1.15);
-    margin-bottom: 6px;
+  /* ---- live */
+  .live { height: 100%; display: grid; grid-template-columns: 180px 1fr; gap: 14px; }
+
+  .pair {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px 10px;
+    border-radius: 22px; text-align: center;
+    background:
+      radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--glow, var(--accent)) 22%, transparent), transparent 70%),
+      var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--hairline);
   }
+  .ring {
+    position: relative; padding: 3px; border-radius: 19px; overflow: hidden; isolation: isolate;
+    animation: qr-in 420ms cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  }
+  .ring::before {
+    content: ""; position: absolute; inset: -40%; z-index: -1;
+    background: conic-gradient(from 0deg, transparent 0 55%, var(--glow, var(--accent)) 75%, #fff 80%, transparent 85%);
+    animation: spin 3.2s linear infinite;
+  }
+  .connected .ring::before { animation-duration: 9s; opacity: 0.55; }
+  .qr { width: 118px; height: 118px; padding: 8px; border-radius: 16px; background: #fff; }
   .qr img { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
-  @keyframes qr-in { from { opacity: 0; transform: scale(0.86); } }
-  .code strong { font-size: 13px; }
-  .addr { font-size: 11px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .link { border: 0; background: none; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; padding: 4px; }
-  .link:hover { color: var(--fg); }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  @keyframes qr-in { from { opacity: 0; transform: scale(0.88); } }
 
-  .lists { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; scrollbar-width: thin; }
-  section { display: flex; flex-direction: column; gap: 6px; }
-  section header { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
-  .actions { display: flex; gap: 4px; }
-  .mini {
-    display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: var(--surface-1); color: var(--muted); font-size: 11.5px; text-transform: none; letter-spacing: 0;
+  .status { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12.5px; font-weight: 600; }
+  .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--glow, var(--accent)); animation: beacon 1.6s ease-out infinite; }
+  .connected .status i { background: #34d399; animation: none; box-shadow: 0 0 8px #34d399; }
+  @keyframes beacon { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--glow, var(--accent)) 70%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+  .hint { font-size: 11px; color: var(--muted); }
+  .tools { display: flex; gap: 4px; margin-top: auto; }
+  .tools button {
+    display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border: 0; border-radius: 8px;
+    background: var(--surface-2); color: var(--muted); font-size: 11.5px; transition: color 140ms, background 140ms;
   }
-  .mini:hover { color: var(--fg); background: var(--surface-2); }
+  .tools button:hover { color: var(--fg); }
+
+  .feed { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .zone {
+    flex: none; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border-radius: 14px;
+    border: 1.5px dashed color-mix(in srgb, var(--glow, var(--accent)) 45%, var(--hairline));
+    background: color-mix(in srgb, var(--glow, var(--accent)) 7%, transparent);
+    color: var(--muted); font-size: 12.5px; text-align: left;
+    transition: background 160ms, border-color 160ms, transform 160ms;
+  }
+  .zone strong { color: var(--fg); font-weight: 600; }
+  .zone:hover { background: color-mix(in srgb, var(--glow, var(--accent)) 14%, transparent); }
+  .zone:active { transform: scale(0.99); }
+  .zone-icon { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--glow, var(--accent)); color: #fff; }
+
+  .list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; padding-right: 2px; }
   .item {
-    display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; background: var(--surface-1);
-    animation: item-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
+    position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 13px;
+    transition: background 140ms;
+    animation: item-in 280ms cubic-bezier(0.2, 0.9, 0.25, 1);
   }
-  @keyframes item-in { from { opacity: 0; transform: translateY(-4px); } }
-  .badge {
-    flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
-    background: var(--surface-2); color: var(--glow, var(--accent)); font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  .item:hover { background: var(--surface-1); }
+  @keyframes item-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+  .tile {
+    position: relative; flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+    color: var(--hue); background: color-mix(in srgb, var(--hue) 16%, transparent); overflow: hidden;
   }
-  .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-  .name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .info { font-size: 11px; color: var(--muted); }
-  .failed .info { color: #ff8a8a; }
-  .bar { height: 3px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-  .bar > div { height: 100%; background: var(--glow, var(--accent)); transition: width 150ms linear; }
-  .pct { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; width: 32px; text-align: right; }
-  .icon {
-    flex: none; width: 26px; height: 26px; border: 0; border-radius: 8px; display: grid; place-items: center;
-    background: transparent; color: var(--muted);
+  .tile img { width: 100%; height: 100%; object-fit: cover; }
+  .ring-progress { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-progress circle { fill: none; stroke: color-mix(in srgb, var(--hue) 25%, transparent); stroke-width: 3; }
+  .ring-progress .bar { stroke: var(--hue); stroke-linecap: round; transition: stroke-dashoffset 160ms linear; }
+  .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .name { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .failed .sub { color: #ff8a8a; }
+  .dir { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; transition: opacity 120ms; }
+  .dir.in { color: #34d399; background: rgb(52 211 153 / 0.14); }
+  .dir.out { color: var(--glow, var(--accent)); background: color-mix(in srgb, var(--glow, var(--accent)) 16%, transparent); }
+  .actions { position: absolute; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity 140ms; }
+  .item:hover .actions { opacity: 1; }
+  .item:hover .dir:has(+ .actions:not(:empty)) { opacity: 0; }
+  .actions button {
+    width: 28px; height: 28px; border: 0; border-radius: 9px; display: grid; place-items: center;
+    background: var(--surface-2); color: var(--fg);
   }
-  .icon:hover { background: var(--surface-2); color: var(--fg); }
-  .empty { font-size: 12px; padding: 8px 10px; border-radius: 12px; border: 1px dashed var(--hairline); }
+  .actions button:hover { background: var(--glow, var(--accent)); color: #fff; }
+  .empty { margin: 6px 4px; font-size: 12px; }
 
   /* ---- files dragged over the island */
   .catch {
-    position: absolute; inset: 0; border-radius: 20px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 10px; pointer-events: none;
-    background: color-mix(in srgb, var(--island-bg) 88%, transparent);
-    border: 1.5px dashed var(--glow, var(--accent)); color: var(--glow, var(--accent));
-    opacity: 0; transform: scale(0.98); transition: opacity 160ms, transform 220ms cubic-bezier(0.2, 0.9, 0.25, 1.2);
+    position: absolute; inset: -4px; border-radius: 22px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px; pointer-events: none; text-align: center;
+    background: color-mix(in srgb, var(--island-bg) 90%, transparent);
+    backdrop-filter: blur(6px);
+    border: 1.5px dashed var(--glow, var(--accent));
+    opacity: 0; transform: scale(0.97); transition: opacity 160ms, transform 240ms cubic-bezier(0.2, 0.9, 0.25, 1.25);
   }
-  .catch strong { color: var(--fg); font-size: 14px; }
+  .catch-icon {
+    width: 52px; height: 52px; border-radius: 17px; display: grid; place-items: center; color: #fff;
+    background: var(--glow, var(--accent)); box-shadow: 0 10px 30px -8px var(--glow, var(--accent));
+    animation: bob 1.4s ease-in-out infinite;
+  }
+  @keyframes bob { 50% { transform: translateY(-4px); } }
+  .catch strong { font-size: 14.5px; margin-top: 4px; }
+  .catch span:last-child { font-size: 12px; color: var(--muted); }
   .dragging .catch { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) {
-    .wave i, .qr, .item { animation: none; }
+    .ring::before, .ring, .item, .catch-icon, .status i { animation: none; }
   }
 </style>

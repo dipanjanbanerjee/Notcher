@@ -11,7 +11,7 @@
 
 use super::{emit_pointer, PlatformMode};
 use crate::island::{fullscreen_on_monitor, MonitorRect, StackedWindow};
-use crate::island::{to_window_logical, HitRegion};
+use crate::island::{to_window_logical, HitRegion, WINDOW_WIDTH};
 use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{Runtime, WebviewWindow};
 use windows::core::BOOL;
@@ -26,15 +26,16 @@ use windows::Win32::{
     },
     UI::{
         HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI},
+        Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON, VK_RBUTTON},
         Shell::{
             SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE,
             QUNS_RUNNING_D3D_FULL_SCREEN,
         },
         WindowsAndMessaging::{
-            GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
-            GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
-            GWL_STYLE, GW_HWNDNEXT, GW_OWNER, WS_CAPTION, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-            WS_EX_TRANSPARENT, WS_POPUP,
+            GetClassNameW, GetCursorPos, GetForegroundWindow, GetSystemMetrics, GetTopWindow,
+            GetWindow, GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed,
+            GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_OWNER, SM_SWAPBUTTON, WS_CAPTION,
+            WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
         },
     },
 };
@@ -96,9 +97,29 @@ pub fn monitors<R: Runtime>(_window: &WebviewWindow<R>) -> Vec<MonitorRect> {
     out
 }
 
+/// While something is being dragged, the island accepts drops from this area around
+/// the top centre of its window, in logical pixels. That way files can be dropped on
+/// the island even when it is tucked into its thin tab or resting small.
+const DROP_ZONE: HitRegion = HitRegion {
+    x: (WINDOW_WIDTH - 380.0) / 2.0,
+    y: 0.0,
+    width: 380.0,
+    height: 60.0,
+};
+
+/// The primary mouse button is held down (a drag may be in progress).
+fn primary_button_down() -> bool {
+    let swapped = unsafe { GetSystemMetrics(SM_SWAPBUTTON) } != 0;
+    let key = if swapped { VK_RBUTTON } else { VK_LBUTTON };
+    let state = unsafe { GetAsyncKeyState(key.0 as i32) };
+    state as u16 & 0x8000 != 0
+}
+
 #[derive(Default)]
 pub struct PointerTracker {
     inside: Option<bool>,
+    /// Whether the window currently takes mouse input (and therefore drops).
+    accepting: Option<bool>,
 }
 
 impl PointerTracker {
@@ -119,9 +140,17 @@ impl PointerTracker {
             scale,
         );
         let inside = region.contains(x, y);
+        // Dragging files from Explorer toward the top of the screen: stop being
+        // click-through there so Windows offers us the drop. This does not count as
+        // hovering, so the island doesn't open until the files actually arrive over it.
+        let drag_target = !inside && DROP_ZONE.contains(x, y) && primary_button_down();
+        let accepting = inside || drag_target;
+        if self.accepting != Some(accepting) {
+            self.accepting = Some(accepting);
+            let _ = window.set_ignore_cursor_events(!accepting);
+        }
         if self.inside != Some(inside) {
             self.inside = Some(inside);
-            let _ = window.set_ignore_cursor_events(!inside);
             emit_pointer(window, inside);
         }
     }
@@ -129,6 +158,7 @@ impl PointerTracker {
     /// Forces the next update to re-apply the click-through state (e.g. after a move).
     pub fn invalidate(&mut self) {
         self.inside = None;
+        self.accepting = None;
     }
 }
 
