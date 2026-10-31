@@ -5,18 +5,33 @@ import {
   dropStart,
   dropState,
   dropStop,
+  dropThumb,
   dropUnshare,
   inTauri,
   onDropState,
   type DropState,
 } from "../bridge";
 
-const EMPTY: DropState = { active: false, url: null, qr: null, folder: "", received: [], shared: [], error: null };
+const EMPTY: DropState = {
+  active: false,
+  url: null,
+  qr: null,
+  folder: "",
+  received: [],
+  shared: [],
+  error: null,
+  device: null,
+  deviceSeenAt: 0,
+};
+
+const IMAGE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
 /** Notcher Drop: the phone ↔ PC transfer session and its file lists. */
 class DropStore {
   state = $state<DropState>({ ...EMPTY });
   starting = $state(false);
+  /** Image previews by item id (null when there is none). */
+  thumbs = $state<Record<number, string | null>>({});
   /** The user pressed Stop, so don't start again until they leave the Drop tab. */
   private held = false;
 
@@ -60,7 +75,7 @@ class DropStore {
   async share(paths: string[]) {
     if (!paths.length) return;
     if (!inTauri) {
-      const shared = paths.map((p, i) => ({ id: Date.now() + i, name: p.split(/[\\/]/).pop() ?? p, size: 1_200_000 }));
+      const shared = paths.map((p, i) => ({ id: Date.now() + i, name: p.split(/[\\/]/).pop() ?? p, size: 1_200_000, downloads: 0, at: Date.now() }));
       this.state = { ...this.state, shared: [...this.state.shared, ...shared] };
       return this.previewStart();
     }
@@ -80,6 +95,15 @@ class DropStore {
 
   open = (id: number | null, reveal = false) => dropOpen(id, reveal);
 
+  /** Starts loading an image preview for each item that needs one (once per item). */
+  loadThumbs(list: { id: number; name: string }[]) {
+    for (const { id, name } of list) {
+      if (!IMAGE.test(name) || id in this.thumbs) continue;
+      this.thumbs[id] = null;
+      void dropThumb(id).then((t) => (this.thumbs[id] = t ?? null));
+    }
+  }
+
   listen() {
     return onDropState((s) => (this.state = s));
   }
@@ -96,14 +120,25 @@ class DropStore {
   }
 
   /** Browser preview: fills the lists so the tab can be designed. */
-  seedPreview() {
+  seedPreview(connected = true) {
     this.previewStart();
-    this.state.received = [
-      { id: 1, name: "IMG_2041.HEIC", size: 3_400_000, done: 1_900_000, status: "receiving" },
-      { id: 2, name: "Boarding pass.pdf", size: 220_000, done: 220_000, status: "done" },
-      { id: 3, name: "Voice memo 12.m4a", size: 1_100_000, done: 1_100_000, status: "done" },
-    ];
-    this.state.shared = [{ id: 9, name: "Slides final v3.pptx", size: 8_400_000 }];
+    const t = Date.now();
+    this.state.device = connected ? "Pixel 7" : null;
+    this.state.deviceSeenAt = connected ? t : 0;
+    this.state.received = connected
+      ? [
+          { id: 1, name: "IMG_2041.jpg", size: 3_400_000, done: 1_900_000, status: "receiving", rate: 4_200_000, at: t - 2_000 },
+          { id: 2, name: "Boarding pass.pdf", size: 220_000, done: 220_000, status: "done", rate: 0, at: t - 60_000 },
+          { id: 3, name: "Voice memo 12.m4a", size: 1_100_000, done: 1_100_000, status: "done", rate: 0, at: t - 600_000 },
+        ]
+      : [];
+    this.state.shared = connected ? [{ id: 9, name: "Slides final v3.pptx", size: 8_400_000, downloads: 1, at: t - 30_000 }] : [];
+    const art =
+      "data:image/svg+xml;utf8," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><circle cx="46" cy="18" r="7" fill="#fff7"/><path d="M0 52l18-16 14 10 12-8 20 14v12H0z" fill="#1e3a5f"/></svg>`,
+      );
+    this.thumbs = { 1: art };
   }
 }
 

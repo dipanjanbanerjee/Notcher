@@ -48,6 +48,11 @@ pub struct DropState {
     pub received: Vec<Received>,
     pub shared: Vec<Shared>,
     pub error: Option<String>,
+    /// The phone that opened the page, e.g. "iPhone" or "Pixel 7".
+    pub device: Option<String>,
+    /// When that phone was last heard from (ms since 1970). It checks in every few
+    /// seconds while the page is open.
+    pub device_seen_at: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -66,6 +71,10 @@ pub struct Received {
     pub size: u64,
     pub done: u64,
     pub status: Status,
+    /// Bytes per second while receiving.
+    pub rate: u64,
+    /// When it started arriving (ms since 1970).
+    pub at: u64,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -76,8 +85,45 @@ pub struct Shared {
     pub id: u64,
     pub name: String,
     pub size: u64,
+    /// How many times the phone has saved it.
+    pub downloads: u32,
+    /// When it was shared (ms since 1970).
+    pub at: u64,
     #[serde(skip)]
     path: PathBuf,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// A short, friendly name for the phone from its browser's User-Agent.
+fn device_name(user_agent: &str) -> String {
+    if user_agent.contains("iPhone") {
+        return "iPhone".into();
+    }
+    if user_agent.contains("iPad") {
+        return "iPad".into();
+    }
+    if let Some(start) = user_agent.find("Android") {
+        // "(Linux; Android 14; Pixel 7 Build/…)" or "(Linux; Android 14; Pixel 7)"
+        let rest = &user_agent[start..];
+        let rest = rest.split(')').next().unwrap_or(rest);
+        let model = rest
+            .split(';')
+            .nth(1)
+            .map(|m| m.split(" Build/").next().unwrap_or(m))
+            .map(|m| m.trim_end_matches(')').trim())
+            .filter(|m| !m.is_empty() && *m != "K" && !m.starts_with("wv"));
+        return model.map_or_else(|| "Android phone".into(), str::to_owned);
+    }
+    if user_agent.contains("Windows") || user_agent.contains("Macintosh") {
+        return "Computer".into();
+    }
+    "Phone".into()
 }
 
 struct Session {
@@ -177,7 +223,8 @@ fn start_session<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let dir = folder(app);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
-    let server = Arc::new(Server::http("0.0.0.0:0").map_err(|e| e.to_string())?);
+    // Listen only on the Wi-Fi/LAN address the phone uses, not on every network.
+    let server = Arc::new(Server::http((ip, 0)).map_err(|e| e.to_string())?);
     let port = server
         .server_addr()
         .to_ip()
@@ -276,6 +323,23 @@ fn handle_request<R: Runtime>(app: &AppHandle<R>, request: Request) {
         return;
     }
     touch();
+    let ua = request
+        .headers()
+        .iter()
+        .find(|h| h.field.equiv("User-Agent"))
+        .map(|h| h.value.as_str().to_owned())
+        .unwrap_or_default();
+    let first_contact = with(|i| {
+        let name = device_name(&ua);
+        let was_fresh = now_ms().saturating_sub(i.state.device_seen_at) < 8_000;
+        let changed = i.state.device.as_deref() != Some(name.as_str()) || !was_fresh;
+        i.state.device = Some(name);
+        i.state.device_seen_at = now_ms();
+        changed
+    });
+    if first_contact {
+        publish(app);
+    }
     match (request.method(), target.path.as_str()) {
         (Method::Get, "/") => {
             let _ = request.respond(http::html(PHONE_PAGE));
@@ -291,7 +355,7 @@ fn handle_request<R: Runtime>(app: &AppHandle<R>, request: Request) {
         }
         (Method::Get, path) if path.starts_with("/api/file/") => {
             let id = path["/api/file/".len()..].parse::<u64>().ok();
-            send_shared(request, id);
+            send_shared(app, request, id);
         }
         (Method::Post, "/api/upload") => {
             let name = target.query("name").unwrap_or_default();
@@ -309,7 +373,7 @@ fn computer_name() -> String {
         .unwrap_or_else(|_| "this PC".into())
 }
 
-fn send_shared(request: Request, id: Option<u64>) {
+fn send_shared<R: Runtime>(app: &AppHandle<R>, request: Request, id: Option<u64>) {
     let file = id.and_then(|id| with(|i| i.state.shared.iter().find(|s| s.id == id).cloned()));
     let Some(shared) = file else {
         let _ = request.respond(http::text(404, "That file is no longer shared."));
@@ -317,7 +381,15 @@ fn send_shared(request: Request, id: Option<u64>) {
     };
     match File::open(&shared.path) {
         Ok(f) => {
-            let _ = request.respond(http::download(f, &shared.name));
+            let sent = request.respond(http::download(f, &shared.name)).is_ok();
+            if sent {
+                with(|i| {
+                    if let Some(s) = i.state.shared.iter_mut().find(|s| s.id == shared.id) {
+                        s.downloads += 1;
+                    }
+                });
+                publish(app);
+            }
         }
         Err(_) => {
             let _ = request.respond(http::text(410, "That file was moved or deleted on the PC."));
@@ -354,6 +426,8 @@ fn receive<R: Runtime>(app: &AppHandle<R>, mut request: Request, raw_name: &str)
                 size,
                 done: 0,
                 status: Status::Receiving,
+                rate: 0,
+                at: now_ms(),
                 path: path.clone(),
             },
         );
@@ -417,6 +491,7 @@ fn copy_with_progress<R: Runtime>(
 ) -> std::io::Result<u64> {
     let mut buf = vec![0u8; 256 * 1024];
     let mut total = 0u64;
+    let started = Instant::now();
     let mut last = Instant::now();
     loop {
         let n = reader.read(&mut buf)?;
@@ -433,6 +508,7 @@ fn copy_with_progress<R: Runtime>(
                 }
                 if let Some(r) = i.state.received.iter_mut().find(|r| r.id == id) {
                     r.done = total;
+                    r.rate = (total as f64 / started.elapsed().as_secs_f64().max(0.001)) as u64;
                 }
             });
             publish(app);
@@ -493,11 +569,47 @@ pub fn drop_share<R: Runtime>(app: AppHandle<R>, paths: Vec<String>) -> DropStat
                 id,
                 name,
                 size: meta.len(),
+                downloads: 0,
+                at: now_ms(),
                 path,
             });
         }
     });
     drop_start(app)
+}
+
+/// A small preview of an image that was received or shared, as a `data:` URL.
+/// Only for common image formats up to a few megabytes.
+#[tauri::command]
+pub async fn drop_thumb(id: u64) -> Option<String> {
+    let path = with(|i| {
+        i.state
+            .received
+            .iter()
+            .filter(|r| r.status == Status::Done)
+            .map(|r| &r.path)
+            .chain(i.state.shared.iter().map(|s| &s.path))
+            .zip(
+                i.state
+                    .received
+                    .iter()
+                    .filter(|r| r.status == Status::Done)
+                    .map(|r| r.id)
+                    .chain(i.state.shared.iter().map(|s| s.id)),
+            )
+            .find(|(_, item)| *item == id)
+            .map(|(p, _)| p.clone())
+    })?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let meta = std::fs::metadata(&path).ok()?;
+        if meta.len() > 4 * 1024 * 1024 {
+            return None;
+        }
+        crate::media::data_url(&std::fs::read(&path).ok()?)
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 #[tauri::command]
@@ -535,18 +647,44 @@ pub fn drop_open<R: Runtime>(app: AppHandle<R>, id: Option<u64>, reveal: bool) {
     }
 }
 
+/// Opens a file with its default app, or shows it selected in Explorer, through the
+/// shell itself rather than by starting another program.
 #[cfg(windows)]
 fn open_path(path: &Path, reveal: bool) {
-    use std::os::windows::process::CommandExt;
-    let mut cmd = std::process::Command::new("explorer.exe");
-    if reveal {
-        // explorer wants "/select," and the path as one argument, unquoted.
-        cmd.raw_arg(format!("/select,\"{}\"", path.display()));
-    } else {
-        cmd.arg(path);
-    }
-    if let Err(err) = cmd.spawn() {
-        log::warn!("could not open {}: {err}", path.display());
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::{w, PCWSTR};
+    use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::Shell::{
+        ILCreateFromPathW, ILFree, SHOpenFolderAndSelectItems, ShellExecuteW,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    unsafe {
+        if reveal {
+            // The shell call needs COM on this thread; an "already initialized" result is fine.
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let item = ILCreateFromPathW(PCWSTR(wide.as_ptr()));
+            if !item.is_null() {
+                if let Err(err) = SHOpenFolderAndSelectItems(item, None, 0) {
+                    log::warn!("could not show {}: {err}", path.display());
+                }
+                ILFree(Some(item));
+                return;
+            }
+        }
+        let result = ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(wide.as_ptr()),
+            None,
+            None,
+            SW_SHOWNORMAL,
+        );
+        // Values above 32 mean success.
+        if result.0 as isize <= 32 {
+            log::warn!("could not open {}", path.display());
+        }
     }
 }
 
@@ -567,7 +705,7 @@ mod tests {
     /// Sends a raw HTTP request to the running server and returns (status, body).
     fn try_request(port: u16, head: &str, body: &[u8]) -> std::io::Result<(u16, Vec<u8>)> {
         use std::io::{Read, Write};
-        let mut s = std::net::TcpStream::connect(("127.0.0.1", port))?;
+        let mut s = std::net::TcpStream::connect((lan_ip().unwrap(), port))?;
         s.write_all(head.as_bytes())?;
         s.write_all(body)?;
         let mut out = Vec::new();
@@ -672,6 +810,19 @@ mod tests {
             b"",
         );
         assert!(!matches!(after, Ok((200, _))));
+    }
+
+    #[test]
+    fn names_the_phone_from_its_browser() {
+        let pixel = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile";
+        assert_eq!(device_name(pixel), "Pixel 7");
+        let samsung = "Mozilla/5.0 (Linux; Android 13; SM-S918B Build/TP1A) Chrome/119";
+        assert_eq!(device_name(samsung), "SM-S918B");
+        let reduced = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/124 Mobile";
+        assert_eq!(device_name(reduced), "Android phone");
+        let iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1";
+        assert_eq!(device_name(iphone), "iPhone");
+        assert_eq!(device_name(""), "Phone");
     }
 
     #[test]

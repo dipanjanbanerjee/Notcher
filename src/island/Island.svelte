@@ -226,6 +226,8 @@
       if (mode !== "open") dispatch({ type: "click" });
     } else if (type === "leave") {
       dragging = false;
+      // The files went elsewhere: fold back unless the pointer is resting on the island.
+      if (!hovered) later("leave", TIMING.leaveGrace, () => dispatch({ type: "leave" }));
     } else if (type === "drop") {
       dragging = false;
       void drop.share(paths);
@@ -342,7 +344,7 @@
     seedPreviewData();
     const t = params.get("tab");
     if (TAB_IDS.includes(t as TabId)) tab = t as TabId;
-    if (t === "drop") drop.seedPreview();
+    if (t === "drop") drop.seedPreview(!params.has("waiting"));
     const m = params.get("mode");
     if (m === "open" || m === "live") {
       mode = m;

@@ -159,12 +159,19 @@ export interface DropReceived {
   size: number;
   done: number;
   status: "receiving" | "done" | "failed";
+  /** Bytes per second while receiving. */
+  rate: number;
+  /** Started arriving, ms since 1970. */
+  at: number;
 }
 
 export interface DropShared {
   id: number;
   name: string;
   size: number;
+  /** Times the phone saved it. */
+  downloads: number;
+  at: number;
 }
 
 export interface DropState {
@@ -175,12 +182,17 @@ export interface DropState {
   received: DropReceived[];
   shared: DropShared[];
   error: string | null;
+  /** The phone that opened the page, e.g. "iPhone" or "Pixel 7". */
+  device: string | null;
+  /** Last time the phone checked in, ms since 1970 (every few seconds while open). */
+  deviceSeenAt: number;
 }
 
 export const dropStart = () => safeInvoke<DropState>("drop_start");
 export const dropStop = () => safeInvoke("drop_stop");
 export const dropState = () => safeInvoke<DropState>("drop_state");
 export const dropShare = (paths: string[]) => safeInvoke<DropState>("drop_share", { paths });
+export const dropThumb = (id: number) => safeInvoke<string | null>("drop_thumb", { id });
 export const dropUnshare = (id: number) => safeInvoke("drop_unshare", { id });
 export const dropClearReceived = () => safeInvoke("drop_clear_received");
 /** Opens a received file (or the Drop folder when `id` is null); `reveal` shows it in Explorer. */

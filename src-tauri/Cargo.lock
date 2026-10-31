@@ -2436,7 +2436,7 @@ dependencies = [
 
 [[package]]
 name = "notcher"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "arboard",
  "base64 0.22.1",
