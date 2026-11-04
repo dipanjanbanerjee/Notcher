@@ -43,9 +43,15 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $tag"
             exit 1
           fi
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag is already released; nothing to do."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+          if draft=$(gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null); then
+            if [ "$draft" = "true" ]; then
+              # An earlier run failed half way (GitHub errors can leave a draft behind).
+              echo "Removing the unfinished draft of $tag and publishing it again."
+              gh release delete "$tag" --yes
+            else
+              echo "$tag is already released; nothing to do."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Build installers
@@ -63,6 +69,17 @@ jobs:
           cp "$bundle"/nsis/*-setup.exe Notcher-Setup.exe
           notes="docs/releases/$TAG.md"
           if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
-          # Creates the tag on this commit if it doesn't exist yet.
-          gh release create "$TAG" --target "$GITHUB_SHA" --title "Notcher $TAG" "$@" \
-            Notcher-Setup.exe "$bundle"/nsis/*.exe "$bundle"/msi/*.msi
+          # Creates the tag on this commit if it doesn't exist yet. GitHub sometimes
+          # answers with a server error; try again, clearing any half-made draft first.
+          for attempt in 1 2 3; do
+            if gh release create "$TAG" --target "$GITHUB_SHA" --title "Notcher $TAG" "$@" \
+              Notcher-Setup.exe "$bundle"/nsis/*.exe "$bundle"/msi/*.msi; then
+              exit 0
+            fi
+            echo "Publishing failed (attempt $attempt); retrying."
+            if [ "$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null)" = "true" ]; then
+              gh release delete "$TAG" --yes
+            fi
+            sleep $((attempt * 20))
+          done
+          exit 1
