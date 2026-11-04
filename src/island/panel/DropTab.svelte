@@ -105,15 +105,15 @@
     <div class="paused">
       <span class="orb" aria-hidden="true"><Icon name="beam" size={26} /></span>
       <div>
-        <h3>Notcher Drop is paused</h3>
+        <h3>Notcher Drop is off</h3>
         {#if s.error}
           <p class="error">{s.error}</p>
         {:else}
-          <p>Send files between your phone and this PC over Wi-Fi.</p>
+          <p>Send files between your phone and this PC over Wi-Fi. Press Start, or drag files onto the island.</p>
         {/if}
       </div>
       <button class="primary" disabled={drop.starting} onclick={() => drop.start()}>
-        {drop.starting ? "Starting…" : s.error ? "Try again" : "Show QR code"}
+        {drop.starting ? "Starting…" : s.error ? "Try again" : "Start"}
       </button>
     </div>
   {:else}

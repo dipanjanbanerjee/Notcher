@@ -209,6 +209,12 @@
       options={WATER_CHOICES.map((m) => ({ id: String(m), label: m === 0 ? "Off" : m < 60 ? `${m}m` : `${m / 60}h` }))}
       onchange={(v) => update("waterReminder", Number(v))}
     />
+    <Toggle
+      label="Play sound with water reminder"
+      hint="A short chime when the reminder pops up"
+      checked={settings.waterSound}
+      onchange={(v) => update("waterSound", v)}
+    />
   </section>
 
   <section>

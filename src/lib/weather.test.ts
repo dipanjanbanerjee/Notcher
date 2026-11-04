@@ -5,11 +5,14 @@ import {
   formatTemp,
   hourName,
   looksLikePostcode,
+  nameCoordinates,
   parseForecast,
   parseGeocode,
   parseIpPlace,
   parseNominatim,
+  parseNominatimReverse,
   parseRates,
+  placeKey,
   parseReverse,
   skyIcon,
   skyOf,
@@ -92,7 +95,46 @@ describe("weather", () => {
       lat: 1,
       lon: 2,
     });
-    expect(parseReverse(null, 1, 2).name).toBe("Your location");
+    expect(parseReverse(null, 1, 2)).toBeNull();
+    expect(parseReverse({ locality: "", city: "" }, 1, 2)).toBeNull();
+    expect(
+      parseNominatimReverse({ address: { suburb: "Salt Lake", city: "Bidhannagar", state: "West Bengal", postcode: "700091" } }, 22.5812, 88.4123),
+    ).toEqual({ name: "Salt Lake", detail: "Bidhannagar, West Bengal, 700091", lat: 22.5812, lon: 88.4123 });
+    expect(parseNominatimReverse({ error: "Unable to geocode" }, 1, 2)).toBeNull();
+  });
+
+  it("names coordinates from the cache, a lookup, or a nearby IP guess", async () => {
+    const store = new Map<string, string>();
+    const realFetch = globalThis.fetch;
+    const realStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
+    });
+    let calls = 0;
+    const respond = (body: unknown) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as Response);
+    globalThis.fetch = ((url: string) => {
+      calls++;
+      if (url.includes("bigdatacloud")) return respond({ locality: "" });
+      return respond({ address: { suburb: "Salt Lake", city: "Bidhannagar", state: "West Bengal" } });
+    }) as typeof fetch;
+    try {
+      const first = await nameCoordinates(22.581, 88.412);
+      expect(first?.name).toBe("Salt Lake");
+      expect(calls).toBe(2);
+      // Looked up once; the next refresh nearby reads the cache.
+      expect((await nameCoordinates(22.583, 88.414))?.name).toBe("Salt Lake");
+      expect(calls).toBe(2);
+      expect(placeKey(22.581, 88.412)).toBe("22.58,88.41");
+
+      globalThis.fetch = (() => Promise.reject(new Error("offline"))) as typeof fetch;
+      const ip = async () => ({ name: "Kolkata", detail: "West Bengal", lat: 22.57, lon: 88.36 });
+      expect((await nameCoordinates(10, 10, ip))).toBeNull();
+      expect((await nameCoordinates(22.9, 88.1, ip))?.name).toBe("Kolkata");
+    } finally {
+      globalThis.fetch = realFetch;
+      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: realStorage });
+    }
   });
 
   it("spots postcodes", () => {

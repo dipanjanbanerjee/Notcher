@@ -245,13 +245,95 @@ export function parseIpPlace(json: unknown): Place | null {
   return { name: typeof j.city === "string" && j.city ? j.city : "Your area", detail: region, lat, lon };
 }
 
-/** Reads a BigDataCloud reverse lookup into a place name. */
-export function parseReverse(json: unknown, lat: number, lon: number): Place {
+/** Reads a BigDataCloud reverse lookup into a place, or null when it names nothing. */
+export function parseReverse(json: unknown, lat: number, lon: number): Place | null {
   const j = (json ?? {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof j[k] === "string" && j[k] ? (j[k] as string) : "");
-  const name = str("locality") || str("city") || str("principalSubdivision") || "Your location";
-  const detail = [str("city") !== name ? str("city") : "", str("principalSubdivision"), str("postcode")].filter(Boolean).join(", ");
+  const str = (k: string) => (typeof j[k] === "string" && j[k] ? (j[k] as string).trim() : "");
+  const name = str("locality") || str("city") || str("principalSubdivision");
+  if (!name) return null;
+  const detail = [str("city") !== name ? str("city") : "", str("principalSubdivision") !== name ? str("principalSubdivision") : "", str("postcode")]
+    .filter(Boolean)
+    .join(", ");
   return { name, detail, lat, lon };
+}
+
+/** Reads a Nominatim reverse lookup into a place at the given coordinates, or null. */
+export function parseNominatimReverse(json: unknown, lat: number, lon: number): Place | null {
+  if (!json || typeof json !== "object" || "error" in json) return null;
+  const [p] = parseNominatim([{ lat, lon, ...(json as Record<string, unknown>) }]);
+  return p ? { ...p, lat, lon } : null;
+}
+
+/** About 1 km either way: close enough to reuse a place name. */
+export const placeKey = (lat: number, lon: number) => `${lat.toFixed(2)},${lon.toFixed(2)}`;
+
+const PLACE_NAMES_KEY = "notcher.placeNames.v1";
+type NameCache = Record<string, { name: string; detail: string }>;
+
+function readNames(): NameCache {
+  try {
+    return (JSON.parse(localStorage.getItem(PLACE_NAMES_KEY) ?? "{}") as NameCache) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberName(key: string, place: Place) {
+  try {
+    const names = readNames();
+    delete names[key];
+    names[key] = { name: place.name, detail: place.detail };
+    // Keep the most recent few; a laptop only visits so many places.
+    const keys = Object.keys(names);
+    for (const old of keys.slice(0, Math.max(0, keys.length - 24))) delete names[old];
+    localStorage.setItem(PLACE_NAMES_KEY, JSON.stringify(names));
+  } catch {
+    /* not cached */
+  }
+}
+
+/**
+ * Names the place at these coordinates: from the cache when it was looked up before,
+ * else BigDataCloud, then OpenStreetMap, then the city an IP lookup gives when it is
+ * nearby. Null when nothing could name it.
+ */
+export async function nameCoordinates(lat: number, lon: number, ipGuess?: () => Promise<Place | null>): Promise<Place | null> {
+  const key = placeKey(lat, lon);
+  const cached = readNames()[key];
+  if (cached?.name) return { ...cached, lat, lon };
+  const lookups: (() => Promise<Place | null>)[] = [
+    () =>
+      getJson(`https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en&latitude=${lat}&longitude=${lon}`).then((j) =>
+        parseReverse(j, lat, lon),
+      ),
+    () =>
+      getJson(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&addressdetails=1&accept-language=en&lat=${lat}&lon=${lon}`,
+      ).then((j) => parseNominatimReverse(j, lat, lon)),
+  ];
+  for (const lookup of lookups) {
+    const place = await lookup().catch(() => null);
+    if (place) {
+      rememberName(key, place);
+      return place;
+    }
+  }
+  // Last resort: the IP lookup's city, if it is around here (within about 100 km).
+  const ip = await ipGuess?.().catch(() => null);
+  if (ip && Math.abs(ip.lat - lat) < 1 && Math.abs(ip.lon - lon) < 1) return { ...ip, lat, lon };
+  return null;
+}
+
+async function ipPlace(): Promise<Place | null> {
+  for (const url of ["https://ipwho.is/", "https://get.geojs.io/v1/ip/geo.json"]) {
+    try {
+      const place = parseIpPlace(await getJson(url));
+      if (place) return place;
+    } catch {
+      /* try the next one */
+    }
+  }
+  return null;
 }
 
 /** Postcodes: digits, or letters and digits like "SW1A 1AA". */
@@ -307,19 +389,12 @@ export async function locateAutomatically(
   precise: { lat: number; lon: number } | null,
 ): Promise<{ place: Place; approximate: boolean }> {
   if (precise) {
-    const json = await getJson(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en&latitude=${precise.lat}&longitude=${precise.lon}`,
-    ).catch(() => null);
-    return { place: parseReverse(json, precise.lat, precise.lon), approximate: false };
+    const { lat, lon } = precise;
+    const place = (await nameCoordinates(lat, lon, ipPlace)) ?? { name: "Your location", detail: "", lat, lon };
+    return { place, approximate: false };
   }
-  for (const url of ["https://ipwho.is/", "https://get.geojs.io/v1/ip/geo.json"]) {
-    try {
-      const place = parseIpPlace(await getJson(url));
-      if (place) return { place, approximate: true };
-    } catch {
-      /* try the next one */
-    }
-  }
+  const place = await ipPlace();
+  if (place) return { place, approximate: true };
   throw new Error("Couldn't work out where you are. Pick a place instead");
 }
 

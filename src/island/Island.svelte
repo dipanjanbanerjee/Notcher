@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
   import Art from "../components/Art.svelte";
   import Equalizer from "../components/Equalizer.svelte";
   import Icon from "../components/Icon.svelte";
@@ -15,6 +15,7 @@
     installUpdate,
     nowPlaying,
     onMedia,
+    onFileDragEvent,
     onNativePointer,
     onSettingsChanged,
     onAppNotification,
@@ -40,6 +41,7 @@
   } from "../lib/island-state";
   import { islandBounds, islandPath, sameRect, type IslandGeometry, type Rect } from "../lib/shape";
   import { DEFAULT_SETTINGS, applyTheme, loadSettings, type Settings } from "../lib/settings";
+  import { playChime } from "../lib/chime";
   import { SPRINGS, SpringGroup } from "../lib/spring";
   import { BeatFollower } from "../lib/beat";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -217,12 +219,6 @@
   /** Files are being dragged over the island. */
   let dragging = $state(false);
 
-  // The QR code is ready whenever the Drop tab is open.
-  $effect(() => {
-    const showing = mode === "open" && tab === "drop";
-    untrack(() => (showing ? drop.ensure() : drop.release()));
-  });
-
   /** Dragging files onto the island opens the Drop tab; dropping shares them with the phone. */
   function onFileDrag(type: "enter" | "over" | "leave" | "drop", paths: string[] = []) {
     if (type === "enter") {
@@ -283,6 +279,7 @@
       // Never interrupts a full-screen video or game, or a panel you are using.
       waterDue = false;
       showLiveActivity({ kind: "water" }, 5000);
+      if (settings.waterSound) void playChime();
     }
   }
 
@@ -528,6 +525,7 @@
           onFileDrag(p.type, p.type === "drop" ? p.paths : []);
         }),
       );
+      unlisten.push(onFileDragEvent((d) => onFileDrag(d.kind, d.paths)));
     }
     unlisten.push(
       onAppNotification((n) => {
@@ -548,12 +546,17 @@
     // The OS only delivers pointer input inside the hit region, so the pointer being
     // anywhere in that region means it is on the island (including the hover margin).
     const onMove = (e: PointerEvent) => {
+      // A button is held: a widget or a selection is being dragged. Don't open or
+      // close the island until it's released.
+      if (e.buttons) return;
       const r = lastRegion;
       const inside = !!r && e.clientX >= r.x && e.clientX < r.x + r.width && e.clientY >= r.y && e.clientY < r.y + r.height;
       if (inside) pointerEnter();
       else pointerLeave();
     };
-    const onOut = () => pointerLeave();
+    const onOut = (e: PointerEvent) => {
+      if (!e.buttons) pointerLeave();
+    };
     document.addEventListener("pointermove", onMove);
     document.documentElement.addEventListener("pointerleave", onOut);
     window.addEventListener("keydown", onKey);

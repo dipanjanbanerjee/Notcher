@@ -41,6 +41,8 @@ export interface Settings {
   taskbarSpeedOffset: number;
   /** Minutes of PC use between "drink some water" pop-ups; 0 turns them off. */
   waterReminder: number;
+  /** Play a short chime when the water reminder pops up. */
+  waterSound: boolean;
   /** Name of the place picked for the weather; empty means "find me automatically". */
   weatherCity: string;
   /** Where that place is (0, 0 when not picked). */
@@ -77,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   taskbarSpeedToday: true,
   taskbarSpeedOffset: 0,
   waterReminder: 60,
+  waterSound: true,
   weatherCity: "",
   weatherLat: 0,
   weatherLon: 0,
