@@ -216,6 +216,12 @@ pub fn run() {
             let handle = app.handle().clone();
             let data_dir = handle.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
+            // Windows blocks drags from Explorer into an app running as administrator.
+            #[cfg(windows)]
+            if platform::restart_unelevated(&data_dir) {
+                handle.exit(0);
+                return Ok(());
+            }
             updater::refresh_icons_once(&data_dir);
             let db = db::Db::open(&data_dir.join("notcher.db"))
                 .map_err(|e| format!("could not open the database: {e}"))?;

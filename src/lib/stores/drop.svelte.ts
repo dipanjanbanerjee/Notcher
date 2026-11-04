@@ -26,26 +26,17 @@ const EMPTY: DropState = {
 
 const IMAGE = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
-/** Notcher Drop: the phone ↔ PC transfer session and its file lists. */
+/**
+ * Notcher Drop: the phone ↔ PC transfer session and its file lists.
+ *
+ * Sharing only starts when the user asks: the Start button in the Drop tab, choosing
+ * files to send, or dropping files on the island. Opening the tab never starts it.
+ */
 class DropStore {
   state = $state<DropState>({ ...EMPTY });
   starting = $state(false);
   /** Image previews by item id (null when there is none). */
   thumbs = $state<Record<number, string | null>>({});
-  /** The user pressed Stop, so don't start again until they leave the Drop tab. */
-  private held = false;
-
-  /** Starts sharing when the Drop tab is showing, so the QR code is simply there. */
-  ensure() {
-    if (this.held || this.state.active || this.starting || this.state.error) return;
-    void this.start();
-  }
-
-  /** The Drop tab is no longer showing: the next visit starts sharing again. */
-  release() {
-    this.held = false;
-    if (this.state.error) this.state.error = null;
-  }
 
   async refresh() {
     const s = await dropState();
@@ -64,7 +55,6 @@ class DropStore {
   }
 
   async stop() {
-    this.held = true;
     if (!inTauri) {
       this.state = { ...this.state, active: false, url: null, qr: null };
       return;

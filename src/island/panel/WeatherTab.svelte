@@ -86,7 +86,7 @@
   <header>
     <button class="place" title="Change place" onclick={openSearch}>
       <Icon name="place" size={14} />
-      <span class="name">{w?.place ?? weather.picked?.name ?? "Your location"}</span>
+      <span class="name">{w?.place ?? weather.picked?.name ?? (weather.loading ? "Finding you…" : "Your location")}</span>
       {#if w?.detail}<span class="detail">{w.detail}</span>{/if}
       <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" /></svg>
     </button>

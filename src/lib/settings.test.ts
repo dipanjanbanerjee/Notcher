@@ -26,4 +26,10 @@ describe("water reminder setting", () => {
     expect(sanitize({ waterReminder: 7 }).waterReminder).toBe(60);
     expect(sanitize({ waterReminder: "30" }).waterReminder).toBe(60);
   });
+
+  it("plays its sound unless turned off", () => {
+    expect(sanitize({}).waterSound).toBe(true);
+    expect(sanitize({ waterSound: false }).waterSound).toBe(false);
+    expect(sanitize({ waterSound: "no" }).waterSound).toBe(true);
+  });
 });

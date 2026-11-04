@@ -2436,7 +2436,7 @@ dependencies = [
 
 [[package]]
 name = "notcher"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -2463,6 +2463,7 @@ dependencies = [
  "tiny_http",
  "url",
  "windows 0.61.3",
+ "windows-core 0.61.2",
  "x11rb",
 ]
 

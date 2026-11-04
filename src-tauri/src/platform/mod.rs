@@ -17,6 +17,8 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewWindo
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(windows)]
+mod win_drop;
+#[cfg(windows)]
 mod windows;
 
 #[cfg(target_os = "linux")]
@@ -24,7 +26,11 @@ use linux as backend;
 #[cfg(target_os = "linux")]
 pub use linux::before_gtk_init;
 #[cfg(windows)]
+pub(crate) use win_drop::restart_unelevated;
+#[cfg(windows)]
 use windows as backend;
+#[cfg(windows)]
+pub(crate) use windows::{is_above, taskbar_hidden};
 
 /// Extra WebView2 switches for every Notcher window (Windows only).
 ///
@@ -33,9 +39,11 @@ use windows as backend;
 /// which shows up as stalled or stuttering animations. These switches keep it
 /// rendering at full rate. All windows must share the same switches because they
 /// share one WebView2 profile; the first three are WebView2's own defaults.
+/// The autoplay switch lets the water reminder chime play without a click first.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion \
---disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
+--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows \
+--autoplay-policy=no-user-gesture-required";
 
 /// Must run before Tauri initialises the windowing toolkit.
 #[cfg(not(target_os = "linux"))]

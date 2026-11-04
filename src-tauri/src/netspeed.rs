@@ -1,8 +1,10 @@
 //! A small internet speed meter on the Windows taskbar, next to the tray icons.
 //!
-//! It is its own tiny transparent window that sits over the taskbar, ignores the
-//! mouse, and is re-raised every second (clicking the taskbar would otherwise cover
-//! it). Speeds come from the vitals sampler, which already measures them.
+//! It is its own tiny transparent window that sits over the taskbar and ignores the
+//! mouse. Clicking the taskbar raises the taskbar over it, so a foreground-change hook
+//! and a cheap check four times a second put it back on top. It hides whenever the
+//! taskbar can't be seen (auto-hide, or a full-screen video or game in front) and comes
+//! back with it. Speeds come from the vitals sampler, which already measures them.
 //!
 //! It can also show how much data was used today, kept across restarts in
 //! `usage.json`, and its text size and side of the taskbar can be changed in Settings.
@@ -110,6 +112,55 @@ pub fn nudged(x: i32, width: i32, offset: i32, taskbar_left: i32, taskbar_right:
     (x + offset).clamp(taskbar_left, max)
 }
 
+/// At least half of the taskbar's thickness is on its monitor. An auto-hidden taskbar
+/// leaves only a sliver of about 2 pixels on screen. Rectangles are (left, top, right,
+/// bottom) in physical pixels.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn mostly_on_screen(bar: (i32, i32, i32, i32), monitor: (i32, i32, i32, i32)) -> bool {
+    let visible_w = bar.2.min(monitor.2) - bar.0.max(monitor.0);
+    let visible_h = bar.3.min(monitor.3) - bar.1.max(monitor.1);
+    let (w, h) = (bar.2 - bar.0, bar.3 - bar.1);
+    if visible_w <= 0 || visible_h <= 0 {
+        return false;
+    }
+    if w >= h {
+        visible_h * 2 >= h
+    } else {
+        visible_w * 2 >= w
+    }
+}
+
+/// Shows or hides the meter only after the same answer twice in a row, so a window
+/// flashing past for a moment can't make it blink.
+#[cfg_attr(not(windows), allow(dead_code))]
+#[derive(Debug, Default)]
+pub struct Steady {
+    shown: Option<bool>,
+    pending: Option<bool>,
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+impl Steady {
+    /// Feeds the latest reading; returns the state to apply when it changes.
+    pub fn update(&mut self, visible: bool) -> Option<bool> {
+        if self.shown.is_none() {
+            self.shown = Some(visible);
+            return Some(visible);
+        }
+        if self.shown == Some(visible) {
+            self.pending = None;
+            return None;
+        }
+        if self.pending == Some(visible) {
+            self.pending = None;
+            self.shown = Some(visible);
+            return Some(visible);
+        }
+        self.pending = Some(visible);
+        None
+    }
+}
+
 /// Data used on one day, saved so restarts don't reset it.
 #[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -140,9 +191,11 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 
 #[cfg(windows)]
 mod platform {
-    use super::{nudged, placement, DailyUsage, Size, Speed, LABEL, UPDATE_EVENT};
+    use super::{nudged, placement, DailyUsage, Size, Speed, Steady, LABEL, UPDATE_EVENT};
     use crate::settings;
     use std::path::PathBuf;
+    use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+    use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
     use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
     use windows::core::w;
@@ -153,14 +206,13 @@ mod platform {
             SystemInformation::GetLocalTime,
         },
         UI::{
+            Accessibility::{SetWinEventHook, HWINEVENTHOOK},
             HiDpi::GetDpiForWindow,
-            Shell::{
-                SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE,
-                QUNS_RUNNING_D3D_FULL_SCREEN,
-            },
             WindowsAndMessaging::{
-                FindWindowExW, FindWindowW, GetWindowRect, IsWindowVisible, SetWindowPos,
-                HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW,
+                DispatchMessageW, FindWindowExW, FindWindowW, GetMessageW, GetWindowRect,
+                IsWindowVisible, SetWindowPos, TranslateMessage, EVENT_SYSTEM_FOREGROUND,
+                HWND_TOPMOST, MSG, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+                SWP_NOZORDER, SWP_SHOWWINDOW, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
             },
         },
     };
@@ -218,15 +270,50 @@ mod platform {
         format!("{:04}-{:02}-{:02}", t.wYear, t.wMonth, t.wDay)
     }
 
+    /// How often the meter checks that the taskbar is showing and that it is still on
+    /// top of it. Cheap Win32 calls only.
+    const CHECK: Duration = Duration::from_millis(250);
+    /// Right after another window comes forward, check a few times quickly: clicking
+    /// the taskbar raises it over the meter, and this puts the meter back at once.
+    const QUICK_CHECK: Duration = Duration::from_millis(40);
+    const QUICK_CHECKS: u8 = 6;
+    /// How often the speeds are sent to the meter.
+    const SPEED_EVERY: Duration = Duration::from_secs(1);
+
+    /// Woken by the foreground-change hook.
+    static WAKE: OnceLock<Mutex<Sender<()>>> = OnceLock::new();
+
     pub fn spawn<R: Runtime>(app: AppHandle<R>) {
+        let (tx, rx) = mpsc::channel();
+        let _ = WAKE.set(Mutex::new(tx));
+        start_foreground_hook();
         let spawned = std::thread::Builder::new()
             .name("notcher-netspeed".into())
             .spawn(move || {
                 let mut usage = Usage::load(&app);
+                let mut meter = Meter::default();
+                let mut last_speed = Instant::now() - SPEED_EVERY;
+                let mut quick = 0u8;
                 loop {
-                    let today = usage.update();
-                    tick(&app, today);
-                    std::thread::sleep(Duration::from_secs(1));
+                    let speed_due = last_speed.elapsed() >= SPEED_EVERY;
+                    let today = if speed_due {
+                        last_speed = Instant::now();
+                        Some(usage.update())
+                    } else {
+                        None
+                    };
+                    meter.tick(&app, today);
+                    let wait = if quick > 0 {
+                        quick -= 1;
+                        QUICK_CHECK
+                    } else {
+                        CHECK
+                    };
+                    match rx.recv_timeout(wait) {
+                        Ok(()) => quick = QUICK_CHECKS,
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => std::thread::sleep(wait),
+                    }
                 }
             });
         if let Err(err) = spawned {
@@ -234,55 +321,148 @@ mod platform {
         }
     }
 
-    fn tick<R: Runtime>(app: &AppHandle<R>, today: u64) {
-        let existing = app.get_webview_window(LABEL);
-        if !settings::flag(app, "taskbarSpeed", true) {
-            if let Some(w) = existing {
-                let _ = w.destroy();
+    /// Wakes the meter whenever another window comes to the front (including the
+    /// taskbar itself when it is clicked), so it can step back on top straight away.
+    fn start_foreground_hook() {
+        unsafe extern "system" fn on_event(
+            _hook: HWINEVENTHOOK,
+            _event: u32,
+            _hwnd: HWND,
+            _object: i32,
+            _child: i32,
+            _thread: u32,
+            _time: u32,
+        ) {
+            if let Some(tx) = WAKE.get().and_then(|m| m.lock().ok()) {
+                let _ = tx.send(());
             }
-            return;
         }
-        let window = match existing {
-            Some(w) => w,
-            None => match create(app) {
-                Some(w) => w,
-                None => return,
-            },
-        };
-        let Some(hwnd) = hwnd_of(&window) else { return };
-        let size = Size::parse(&settings::text(app, "taskbarSpeedSize", "medium"));
-        let show_today = settings::flag(app, "taskbarSpeedToday", true);
-        let on_left = settings::text(app, "taskbarSpeedPosition", "right") == "left";
-        let offset = settings::number(app, "taskbarSpeedOffset", 0.0);
-        match target_rect(size.width(show_today), on_left, offset) {
-            Some((x, y, w, h)) if !fullscreen_app() => unsafe {
-                // Re-raise above the taskbar every second; clicking the taskbar brings it
-                // back on top of us otherwise.
-                let _ = SetWindowPos(
-                    hwnd,
-                    Some(HWND_TOPMOST),
-                    x,
-                    y,
-                    w,
-                    h,
-                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        let spawned = std::thread::Builder::new()
+            .name("notcher-netspeed-hook".into())
+            .spawn(|| unsafe {
+                let hook = SetWinEventHook(
+                    EVENT_SYSTEM_FOREGROUND,
+                    EVENT_SYSTEM_FOREGROUND,
+                    None,
+                    Some(on_event),
+                    0,
+                    0,
+                    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
                 );
-            },
-            _ => {
-                let _ = window.hide();
+                if hook.is_invalid() {
+                    log::warn!("taskbar meter: no foreground hook; it re-checks every 250 ms");
+                    return;
+                }
+                // Out-of-context hooks are delivered through this thread's messages.
+                let mut msg = MSG::default();
+                while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            });
+        if let Err(err) = spawned {
+            log::warn!("taskbar meter: could not start the foreground hook: {err}");
+        }
+    }
+
+    #[derive(Default)]
+    struct Meter {
+        steady: Steady,
+        /// Where the meter was last put, to skip moving it when nothing changed.
+        placed: Option<(i32, i32, i32, i32)>,
+        visible: bool,
+    }
+
+    impl Meter {
+        /// Keeps the meter on top of the taskbar and hides it while the taskbar can't be
+        /// seen. `today` is set once a second, when the speeds are sent too.
+        fn tick<R: Runtime>(&mut self, app: &AppHandle<R>, today: Option<u64>) {
+            let existing = app.get_webview_window(LABEL);
+            if !settings::flag(app, "taskbarSpeed", true) {
+                if let Some(w) = existing {
+                    let _ = w.destroy();
+                }
+                *self = Meter::default();
                 return;
             }
-        }
-        if let Some(v) = crate::vitals::vitals_snapshot() {
-            let speed = Speed {
-                rx: v.net_rx,
-                tx: v.net_tx,
-                light_taskbar: light_taskbar(),
-                today: show_today.then_some(today),
-                size: size.name().to_owned(),
-                left: on_left,
+            let window = match existing {
+                Some(w) => w,
+                None => match create(app) {
+                    Some(w) => {
+                        *self = Meter::default();
+                        w
+                    }
+                    None => return,
+                },
             };
-            let _ = app.emit_to(LABEL, UPDATE_EVENT, speed);
+            let Some(hwnd) = hwnd_of(&window) else { return };
+            let size = Size::parse(&settings::text(app, "taskbarSpeedSize", "medium"));
+            let show_today = settings::flag(app, "taskbarSpeedToday", true);
+            let on_left = settings::text(app, "taskbarSpeedPosition", "right") == "left";
+            let offset = settings::number(app, "taskbarSpeedOffset", 0.0);
+            let taskbar = unsafe { FindWindowW(w!("Shell_TrayWnd"), None) }.ok();
+            let rect =
+                taskbar.and_then(|t| target_rect(t, size.width(show_today), on_left, offset));
+            let showing = match (taskbar, rect) {
+                (Some(t), Some(_)) => !crate::platform::taskbar_hidden(t),
+                _ => false,
+            };
+            if let Some(change) = self.steady.update(showing) {
+                self.visible = change;
+                if !change {
+                    self.placed = None;
+                    unsafe {
+                        let _ = SetWindowPos(
+                            hwnd,
+                            None,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_HIDEWINDOW
+                                | SWP_NOMOVE
+                                | SWP_NOSIZE
+                                | SWP_NOZORDER
+                                | SWP_NOACTIVATE,
+                        );
+                    }
+                }
+            }
+            if !self.visible {
+                return;
+            }
+            if let (Some(taskbar), Some(place)) = (taskbar, rect) {
+                let covered = crate::platform::is_above(taskbar, hwnd);
+                let moved = self.placed != Some(place);
+                let hidden = !unsafe { IsWindowVisible(hwnd) }.as_bool();
+                if covered || moved || hidden {
+                    self.placed = Some(place);
+                    let (x, y, w, h) = place;
+                    unsafe {
+                        let _ = SetWindowPos(
+                            hwnd,
+                            Some(HWND_TOPMOST),
+                            x,
+                            y,
+                            w,
+                            h,
+                            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                        );
+                    }
+                }
+            }
+            let Some(today) = today else { return };
+            if let Some(v) = crate::vitals::vitals_snapshot() {
+                let speed = Speed {
+                    rx: v.net_rx,
+                    tx: v.net_tx,
+                    light_taskbar: light_taskbar(),
+                    today: show_today.then_some(today),
+                    size: size.name().to_owned(),
+                    left: on_left,
+                };
+                let _ = app.emit_to(LABEL, UPDATE_EVENT, speed);
+            }
         }
     }
 
@@ -321,12 +501,12 @@ mod platform {
     }
 
     fn target_rect(
+        taskbar: HWND,
         logical_width: f64,
         on_left: bool,
         logical_offset: f64,
     ) -> Option<(i32, i32, i32, i32)> {
         unsafe {
-            let taskbar = FindWindowW(w!("Shell_TrayWnd"), None).ok()?;
             let mut r = RECT::default();
             GetWindowRect(taskbar, &mut r).ok()?;
             let tray_left = FindWindowExW(Some(taskbar), None, w!("TrayNotifyWnd"), None)
@@ -359,12 +539,6 @@ mod platform {
         }
     }
 
-    fn fullscreen_app() -> bool {
-        unsafe { SHQueryUserNotificationState() }.is_ok_and(|s| {
-            s == QUNS_BUSY || s == QUNS_RUNNING_D3D_FULL_SCREEN || s == QUNS_PRESENTATION_MODE
-        })
-    }
-
     /// Windows' "system" (taskbar) colour mode.
     fn light_taskbar() -> bool {
         let mut value: u32 = 0;
@@ -386,7 +560,37 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{nudged, placement, DailyUsage, Size};
+    use super::{mostly_on_screen, nudged, placement, DailyUsage, Size, Steady};
+
+    #[test]
+    fn an_auto_hidden_taskbar_counts_as_off_screen() {
+        let monitor = (0, 0, 1920, 1080);
+        assert!(mostly_on_screen((0, 1032, 1920, 1080), monitor));
+        // Slid down, leaving 2 pixels showing.
+        assert!(!mostly_on_screen((0, 1078, 1920, 1126), monitor));
+        // Half way through sliding back.
+        assert!(mostly_on_screen((0, 1056, 1920, 1104), monitor));
+        // A taskbar on the left edge, hidden and shown.
+        assert!(!mostly_on_screen((-46, 0, 2, 1080), monitor));
+        assert!(mostly_on_screen((0, 0, 48, 1080), monitor));
+        // On another monitor entirely.
+        assert!(!mostly_on_screen((1920, 1032, 3840, 1080), monitor));
+    }
+
+    #[test]
+    fn the_meter_only_changes_after_two_matching_checks() {
+        let mut s = Steady::default();
+        assert_eq!(s.update(true), Some(true));
+        // One odd reading (a window flashing past) does nothing.
+        assert_eq!(s.update(false), None);
+        assert_eq!(s.update(true), None);
+        assert_eq!(s.update(false), None);
+        // Two in a row do.
+        assert_eq!(s.update(false), Some(false));
+        assert_eq!(s.update(false), None);
+        assert_eq!(s.update(true), None);
+        assert_eq!(s.update(true), Some(true));
+    }
 
     #[test]
     fn sits_left_of_the_tray_on_a_bottom_taskbar() {

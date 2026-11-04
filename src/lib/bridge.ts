@@ -80,6 +80,12 @@ export const onSuppressed = (h: (v: { value: boolean }) => void) =>
   safeListen("island://suppressed", h);
 export const onNativePointer = (h: (v: { value: boolean }) => void) =>
   safeListen("island://pointer", h);
+/** A file drag over the island, from Notcher's own drop handler (Windows). */
+export interface FileDrag {
+  kind: "enter" | "over" | "leave" | "drop";
+  paths: string[];
+}
+export const onFileDragEvent = (h: (d: FileDrag) => void) => safeListen("island://file-drag", h);
 export const onSettingsChanged = (h: () => void) => safeListen("settings://changed", h);
 export const notifySettingsChanged = () => (inTauri ? emit("settings://changed") : undefined);
 
