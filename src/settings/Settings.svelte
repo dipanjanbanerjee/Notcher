@@ -64,7 +64,7 @@
   async function installNow() {
     if (!release) return;
     updateState = "installing";
-    const error = await installUpdate(release.url, release.version);
+    const error = await installUpdate(release.url, release.version, release.msiUrl);
     if (error) {
       updateState = "error";
       updateError = error;

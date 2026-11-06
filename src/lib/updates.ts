@@ -5,8 +5,10 @@
 
 export interface Release {
   version: string;
-  /** The installer to download. */
+  /** The installer to download (the NSIS setup .exe). */
   url: string;
+  /** The MSI package, used instead when Notcher was installed from an MSI. */
+  msiUrl: string | null;
   /** The release page, for "what's new". */
   page: string;
 }
@@ -35,7 +37,9 @@ export function parseRelease(json: unknown): Release | null {
   if (!exe || typeof exe.browser_download_url !== "string") return null;
   const version = j.tag_name.replace(/^v/i, "");
   if (!/^\d+(\.\d+){0,3}$/.test(version)) return null;
-  return { version, url: exe.browser_download_url, page: typeof j.html_url === "string" ? j.html_url : "" };
+  const msi = j.assets.find((a) => typeof a.name === "string" && /\.msi$/i.test(a.name));
+  const msiUrl = msi && typeof msi.browser_download_url === "string" ? msi.browser_download_url : null;
+  return { version, url: exe.browser_download_url, msiUrl, page: typeof j.html_url === "string" ? j.html_url : "" };
 }
 
 /** The newest release when it is newer than `current`, otherwise null. Throws when offline. */

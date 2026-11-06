@@ -4,6 +4,8 @@ import {
   formatHm,
   formatTemp,
   hourName,
+  COARSE_FIX_M,
+  locationNoteOf,
   looksLikePostcode,
   nameCoordinates,
   parseForecast,
@@ -149,5 +151,20 @@ describe("weather", () => {
     const r = parseRates({ result: "success", time_last_update_unix: 100, rates: { USD: 1, INR: 83.2, bad: 2, XXX: -1 } }, 7);
     expect(r).toEqual({ rates: { USD: 1, INR: 83.2 }, updated: 100_000, at: 7 });
     expect(parseRates({ result: "error" })).toBeNull();
+  });
+});
+
+describe("locationNoteOf", () => {
+  const fix = (accuracy: number) => ({ position: { lat: 22.57, lon: 88.36, accuracy } });
+  it("treats a close Windows fix as precise", () => {
+    expect(locationNoteOf(fix(35))).toBeNull();
+    expect(locationNoteOf(fix(COARSE_FIX_M))).toBeNull();
+  });
+  it("flags a city-sized Windows fix as the rough area", () => {
+    expect(locationNoteOf(fix(12_000))).toBe("coarse");
+  });
+  it("tells location that is switched off from one that found nothing", () => {
+    expect(locationNoteOf({ error: { kind: "off", message: "" } })).toBe("off");
+    expect(locationNoteOf({ error: { kind: "unavailable", message: "" } })).toBe("unavailable");
   });
 });

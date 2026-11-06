@@ -39,6 +39,14 @@ export interface Weather {
   detail: string;
   /** True when the place is only a guess from the internet connection. */
   approximate: boolean;
+  /**
+   * Why the automatic place isn't precise: Windows location is off for desktop apps,
+   * Windows couldn't get a fix, or it only knows the rough area. Absent when precise
+   * or picked by hand.
+   */
+  locationNote?: LocationNote | null;
+  /** How precise Windows' fix was, in metres, when it gave one. */
+  accuracy?: number | null;
   /** Degrees Celsius. */
   temp: number;
   feels: number;
@@ -381,24 +389,50 @@ export async function searchPlaces(query: string): Promise<Place[]> {
   return unique.slice(0, 6);
 }
 
-/**
- * Where the PC is: `precise` (from Windows) when available, named by a reverse
- * lookup; otherwise a rough guess from the internet connection.
- */
-export async function locateAutomatically(
-  precise: { lat: number; lon: number } | null,
-): Promise<{ place: Place; approximate: boolean }> {
-  if (precise) {
-    const { lat, lon } = precise;
-    const place = (await nameCoordinates(lat, lon, ipPlace)) ?? { name: "Your location", detail: "", lat, lon };
-    return { place, approximate: false };
-  }
-  const place = await ipPlace();
-  if (place) return { place, approximate: true };
-  throw new Error("Couldn't work out where you are. Pick a place instead");
+export type LocationNote = "off" | "unavailable" | "coarse";
+
+/** What Windows said when asked where the PC is. */
+export type WindowsLocation =
+  | { position: { lat: number; lon: number; accuracy: number } }
+  | { error: { kind: "off" | "unavailable"; message: string } };
+
+/** A Windows fix less precise than this (metres) is only the rough area. */
+export const COARSE_FIX_M = 3000;
+
+/** How good the Windows answer is: null when it is a precise fix. */
+export function locationNoteOf(found: WindowsLocation): LocationNote | null {
+  if ("error" in found) return found.error.kind;
+  return found.position.accuracy > COARSE_FIX_M ? "coarse" : null;
 }
 
-export async function fetchWeather(place: Place, approximate: boolean): Promise<Weather> {
+export interface AutoPlace {
+  place: Place;
+  approximate: boolean;
+  note: LocationNote | null;
+  accuracy: number | null;
+}
+
+/**
+ * Where the PC is: Windows' own fix when there is one, named by a reverse lookup;
+ * otherwise a rough guess from the internet connection.
+ */
+export async function locateAutomatically(found: WindowsLocation): Promise<AutoPlace> {
+  const note = locationNoteOf(found);
+  if ("position" in found) {
+    const { lat, lon, accuracy } = found.position;
+    const place = (await nameCoordinates(lat, lon, ipPlace)) ?? { name: "Your location", detail: "", lat, lon };
+    return { place, approximate: note !== null, note, accuracy };
+  }
+  const place = await ipPlace();
+  if (place) return { place, approximate: true, note, accuracy: null };
+  throw new Error(
+    note === "off"
+      ? "Couldn't work out where you are. Turn on Windows location for desktop apps, or pick a place"
+      : "Couldn't work out where you are. Pick a place instead",
+  );
+}
+
+export async function fetchWeather(place: Place, approximate: boolean, extra: Pick<Weather, "locationNote" | "accuracy"> = {}): Promise<Weather> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}` +
     "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m" +
@@ -407,7 +441,7 @@ export async function fetchWeather(place: Place, approximate: boolean): Promise<
     "&timezone=auto&forecast_days=7";
   const weather = parseForecast(await getJson(url), { place: place.name, detail: place.detail, approximate });
   if (!weather) throw new Error("The weather service sent something odd");
-  return weather;
+  return { ...weather, ...extra };
 }
 
 /** Exchange rates per US dollar, from open.er-api.com (free, no key, daily). */

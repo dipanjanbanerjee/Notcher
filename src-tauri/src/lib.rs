@@ -210,6 +210,7 @@ pub fn run() {
             filedrop::drop_clear_received,
             filedrop::drop_open,
             location::precise_location,
+            location::open_location_settings,
             updater::install_update,
         ])
         .setup(|app| {
@@ -223,6 +224,7 @@ pub fn run() {
                 return Ok(());
             }
             updater::refresh_icons_once(&data_dir);
+            updater::clean_old_installers();
             let db = db::Db::open(&data_dir.join("notcher.db"))
                 .map_err(|e| format!("could not open the database: {e}"))?;
             handle.manage(db);

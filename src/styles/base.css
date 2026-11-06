@@ -61,6 +61,25 @@
   color-scheme: light;
 }
 
+/* Ubuntu, bundled with the app (see fonts/ubuntu/UFL.txt), for the clock and date. */
+@font-face {
+  font-family: "Notcher Ubuntu";
+  src: url("./fonts/ubuntu/ubuntu-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Notcher Ubuntu";
+  src: url("./fonts/ubuntu/ubuntu-latin-500-normal.woff2") format("woff2");
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: block;
+}
+:root {
+  --clock-font: "Notcher Ubuntu", "Ubuntu", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+
 *,
 *::before,
 *::after {

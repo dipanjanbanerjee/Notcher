@@ -46,13 +46,33 @@ export interface Position {
   accuracy: number;
 }
 /** The PC's location from Windows, or null when location is off. */
-export const preciseLocation = () => safeInvoke<Position>("precise_location");
+/** Why Windows gave no location: switched off for desktop apps, or no fix right now. */
+export interface LocationError {
+  kind: "off" | "unavailable";
+  message: string;
+}
+
+/** The PC's location from Windows, or why there is none. */
+export async function preciseLocation(): Promise<{ position: Position } | { error: LocationError }> {
+  if (!inTauri) return { error: { kind: "unavailable", message: "Precise location needs the app" } };
+  try {
+    return { position: await invoke<Position>("precise_location") };
+  } catch (err) {
+    const e = err as Partial<LocationError> | string;
+    if (typeof e === "object" && e && (e.kind === "off" || e.kind === "unavailable")) {
+      return { error: { kind: e.kind, message: String(e.message ?? "") } };
+    }
+    return { error: { kind: "unavailable", message: String(err) } };
+  }
+}
+/** Opens Windows Settings › Privacy & security › Location. */
+export const openLocationSettings = () => safeInvoke("open_location_settings");
 
 /** Downloads and installs an update, then restarts Notcher. Resolves to an error message, or null. */
-export async function installUpdate(url: string, version: string): Promise<string | null> {
+export async function installUpdate(url: string, version: string, msiUrl: string | null = null): Promise<string | null> {
   if (!inTauri) return "Updates install from the app";
   try {
-    await invoke("install_update", { url, version });
+    await invoke("install_update", { url, version, msiUrl });
     return null;
   } catch (err) {
     return String(err);
