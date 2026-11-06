@@ -105,6 +105,34 @@ pub fn hover_changed(previous: Option<bool>, inside: bool, moved: bool) -> bool 
     !(inside && !moved && previous == Some(false))
 }
 
+/// Window classes that belong to the Windows shell rather than to an app: the desktop,
+/// the taskbars, and the flyouts that open from the taskbar (Start, Search, Widgets,
+/// Quick Settings, the notification centre, Task View, Alt+Tab, tray overflow, the
+/// language switcher). Several of these fill the whole monitor while open, so they
+/// must never count as "a full-screen app".
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn is_shell_class(class: &str) -> bool {
+    matches!(
+        class,
+        "Progman"
+            | "WorkerW"
+            | "Shell_TrayWnd"
+            | "Shell_SecondaryTrayWnd"
+            | "Windows.UI.Core.CoreWindow"
+            | "XamlExplorerHostIslandWindow"
+            | "MultitaskingViewFrame"
+            | "TaskListThumbnailWnd"
+            | "TaskListOverlayWnd"
+            | "ForegroundStaging"
+            | "NotifyIconOverflowWindow"
+            | "TopLevelWindowForOverflowXamlIsland"
+            | "Shell_InputSwitchTopLevelWindow"
+            | "Shell_LightDismissOverlay"
+            | "ControlCenterWindow"
+            | "SysShadow"
+    )
+}
+
 /// A top-level window as seen by the full-screen check, in physical screen pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StackedWindow {
@@ -241,6 +269,26 @@ mod tests {
             &MONITOR
         ));
         assert!(!fullscreen_on_monitor(&[], &MONITOR));
+    }
+
+    #[test]
+    fn taskbar_flyouts_are_shell_windows_but_apps_are_not() {
+        for class in [
+            "Shell_TrayWnd",
+            "Windows.UI.Core.CoreWindow",
+            "XamlExplorerHostIslandWindow",
+            "MultitaskingViewFrame",
+        ] {
+            assert!(is_shell_class(class), "{class}");
+        }
+        for class in [
+            "Chrome_WidgetWin_1",
+            "MozillaWindowClass",
+            "ApplicationFrameWindow",
+            "CabinetWClass",
+        ] {
+            assert!(!is_shell_class(class), "{class}");
+        }
     }
 
     #[test]

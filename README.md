@@ -1,56 +1,92 @@
 # Notcher
 
-A fluid, living "island" at the top of your screen for **Windows 10 and 11**. It gives you music, clipboard history, quick notes, timers, a unit converter, weather and system stats, one hover away, and phone-to-PC file transfers by QR code.
+**A living island at the top of your Windows screen.** Music, clipboard history, notes, timers, weather, a unit converter and system stats are one hover away, and Notcher Drop moves files between your phone and PC with a QR code. Built for Windows 10 and 11.
 
-**[Download for Windows](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe)** · [Website](https://dipanjanbanerjee.github.io/notcher/) · [All releases](https://github.com/dipanjanbanerjee/notcher/releases)
+**[Download Notcher for Windows](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe)** · [Website](https://dipanjanbanerjee.github.io/notcher/) · [All releases](https://github.com/dipanjanbanerjee/notcher/releases)
 
-Latest version: **1.0.2** ([what's new](docs/releases/v1.0.2.md)). See the [product spec](docs/SPEC.md) for the full plan.
+Latest version: **1.1.0** ([what's new](docs/releases/v1.1.0.md))
+
+## Screenshots
+
+<!-- Replace with fresh captures of 1.1.0 (resting clock, Home, Drop, Weather). -->
+
+| Home | Weather | Clipboard |
+| --- | --- | --- |
+| ![Home tab](site/shots/home.webp) | ![Weather tab](site/shots/weather.webp) | ![Clipboard tab](site/shots/clips.webp) |
 
 ## Install
 
-1. Download [Notcher-Setup.exe](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe) and run it. No administrator rights are needed.
-2. If an older Notcher is running, quit it from the tray icon first.
-3. That's it. From version 1.0.1 on, Notcher updates itself when it starts. You can also check by hand in Settings › Updates.
+1. Download [Notcher-Setup.exe](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe) and run it. No administrator rights are needed; it installs for your account only.
+2. Notcher starts at the top of your screen and sits in the tray. Right-click the tray icon for Settings and Quit.
+3. Updates install themselves when Notcher starts (Settings › Updates lets you check by hand or turn this off). Each update replaces the installed copy in place, and your data is kept.
 
-## What's new in 1.0.2
-
-- The taskbar speed meter stays put when you click the taskbar, and hides with the taskbar during full-screen videos and games.
-- Dragging files from File Explorer onto the island works reliably, and each drag is logged.
-- Notcher Drop starts only when you press Start or drag files onto the island.
-- Holding a mouse button (moving a window, rearranging widgets) no longer opens the island.
-- The water reminder plays a short chime, which you can turn off.
-- Weather's automatic mode shows your actual city or area.
+An `.msi` package is also published with each release, for managed PCs. It installs for all users and asks for administrator rights. Use either the Setup.exe or the .msi, not both.
 
 ## Features
 
-- **The island:** a notch-style shape that hangs from the top of the screen. At rest it shows the date and a live clock with seconds (12-hour with AM/PM, or 24-hour). Hover over it and it springs open into the full panel. Short *live* pop-ups, such as a new song or a finished timer, appear from rest and fold back by themselves. Every animation can be interrupted, and reduced-motion settings are respected.
-- **Click-through:** only the island itself takes the mouse, and everything around it clicks straight through to your apps. While a mouse button is held (dragging a window, selecting text), hovering doesn't open it.
-- **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Windows Media Player…), with play/pause, next and previous. A short *live* activity appears when the track changes.
-- **Open panel with eight tabs** (`Ctrl+1` to `Ctrl+8`):
-  - **Home:** clock, music controls, today's screen time, and quick looks at your timer, system, last copy and latest note. Press the pen button, then drag widgets to rearrange them, or remove and add them. The island stays open while you drag.
-  - **Clipboard:** the last 200 things you copied, text and images, with search and pinning. Click to copy again. Passwords from password managers are never saved.
-  - **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
-  - **Focus:** Pomodoro, countdown timer and stopwatch. The time stays visible on the resting island.
-  - **Convert:** length, weight, temperature, volume, area, speed, data, time, and currency with daily exchange rates. Handy amounts (1, 5, 10, 50, 100) are shown underneath; click the result to copy it.
-  - **Weather:** now, feels-like, humidity, wind, rain chance, sunrise and sunset, the next 24 hours and the week. Click the place name to search for a city, an area or a PIN code. Automatic mode uses Windows location (turn on *Settings › Privacy & security › Location › Let desktop apps access your location*), names the place you're in, and falls back to a rough guess from your connection. There's a Weather widget for Home too.
-  - **System:** CPU and memory over the last minute, disk, battery, and today's screen time with the apps you used most.
-  - **Drop:** Notcher Drop, see below.
-- **Notcher Drop:** move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and save files the PC shares. It starts only when you press Start in the Drop tab or drag files onto the island (which works even when it's tucked away). The Drop tab shows which phone is connected, live transfer speed and photo previews. It works over your own Wi-Fi with a one-time key, nothing goes through the internet, and it stops by itself after 10 idle minutes. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
-- **Glow:** a soft light around the island, tinted from the album art, plus a thin *beat glow* under its bottom edge that pulses with whatever is playing (read from the Windows volume meter; nothing is recorded).
-- **Screen time:** how long you've been at your PC today and in which apps. Time away, a locked PC and the screen saver don't count; a full-screen video does. Only app names and totals are kept, on your PC.
-- **Water reminder:** a gentle pop-up after every hour at the PC (or 30 min to 2 hours, or off, in Settings › Wellbeing). Time away doesn't count, and it waits until a full-screen video or game ends. It plays a short chime; turn it off with *Play sound with water reminder*.
-- **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access (Settings › Privacy & security › Notifications).
-- **Steps aside for full-screen and maximized apps:** the island tucks into a thin tab at the top edge. Hover the tab to open it; song changes and notifications still pop out.
-- **Internet speed on the taskbar:** upload and download speed, then how much data you've used today. In Settings › Taskbar you can pick small, medium or large text, put it on the left or right of the taskbar, nudge it with the arrow buttons if it covers other taskbar icons, or turn it off. It hides with the taskbar during full-screen videos and games, and when the taskbar auto-hides.
+### The island
+
+- **Resting:** a slim notch with the date and a clock with seconds (12-hour or 24-hour), set in the Ubuntu typeface with no glow, so it stays clean on every theme.
+- **Open:** hover and it springs open into the full panel. Short pop-ups (a new song, a finished timer, a notification) come out of the notch and fold back by themselves. Every animation can be interrupted, and reduced-motion settings are respected.
+- **Click-through:** only the island takes the mouse; everything around it clicks straight through to your apps. While a mouse button is held (moving a window, selecting text), hovering doesn't open it.
+- **Steps aside:** over a full-screen or maximized app it tucks into a thin tab at the top edge. Hover the tab to bring it back.
+- **Glow:** a soft light around the island tinted from the album art, plus a *beat glow* under its edge that pulses with what's playing (read from the Windows volume meter; nothing is recorded).
 - **Multi-monitor:** the island follows the screen your cursor is on.
-- **Shortcut:** `Ctrl+Alt+Space` opens and closes the island from anywhere (you can change it).
-- **Themes:** Obsidian, Daylight, Neon, Paper.
-- **Updates:** Notcher checks GitHub Releases when it starts and installs a newer version by itself (Settings › Updates, where you can also check by hand or turn this off).
-- Tray icon, settings window, launch at login, single instance.
+- **Shortcut:** `Ctrl+Alt+Space` opens and closes it from anywhere (you can change it).
+- **Themes:** Obsidian, Daylight, Neon and Paper.
 
-## Platform support
+### Eight tabs (`Ctrl+1` to `Ctrl+8`)
 
-Notcher is built for **Windows 10 (1809 or later) and Windows 11**. It uses Windows' own media controls (SMTC) for music, so any player that shows up in the Windows volume flyout works.
+- **Home:** clock, music controls, today's screen time, and quick looks at your timer, system, last copy and latest note. Press the pen button to drag widgets around, remove them or add more.
+- **Clipboard:** the last 200 things you copied, text and images, with search and pinning. Click one to copy it again. Passwords from password managers are never saved.
+- **Notes:** quick notes that save as you type, with `[ ]` checklists and pinning.
+- **Focus:** Pomodoro, countdown and stopwatch. The time stays visible on the resting island.
+- **Convert:** length, weight, temperature, volume, area, speed, data, time, and currency with daily exchange rates. Click the result to copy it.
+- **Weather:** now, feels-like, humidity, wind, rain, sunrise and sunset, the next 24 hours and the week. Search for a city, an area or a PIN code, or let *Use my location* find you with Windows' precise location (GPS or Wi-Fi) and show the place it found. If Windows location is off, it uses a rough guess from your connection and shows how to turn precise location on.
+- **System:** CPU and memory over the last minute, disk, battery, and today's screen time by app.
+- **Drop:** Notcher Drop, below.
+
+### Notcher Drop
+
+Move files between your phone and PC by scanning a QR code. Your phone's browser opens a page where you can send photos and files to the PC (saved to `Downloads\Notcher Drop`) and download files the PC shares.
+
+- Drag files from File Explorer onto the notch, even when it's tucked away or resting small: the Drop tab opens, and the files are shared with a QR code for your phone.
+- It starts only when you press **Start** in the Drop tab or drop files on the island, and stops after 10 idle minutes.
+- It works over your own Wi-Fi with a one-time key; nothing goes through the internet. The first time, Windows may ask to let Notcher through the firewall: allow it on private networks.
+
+### Around your PC
+
+- **Now playing:** title, artist, cover art and progress from any media app (Spotify, browsers, VLC, Media Player…), with play/pause, next and previous.
+- **Notifications:** messages from WhatsApp, Telegram, Mail and other apps pop out of the island, with or without the message text. Windows asks once for notification access.
+- **Internet speed on the taskbar:** upload and download speed, plus today's data use. It sits right on the taskbar, stays put when you click it, and hides with the taskbar during full-screen videos and games or when the taskbar auto-hides. Choose its size and side, nudge it into place, or turn it off in Settings › Taskbar.
+- **Screen time:** how long you've been at your PC today and in which apps. Time away, a locked PC and the screen saver don't count. Only app names and totals are kept, on your PC.
+- **Water reminder:** a gentle pop-up after every hour at the PC (30 minutes to 2 hours, or off, in Settings › Wellbeing). It waits until a full-screen video or game ends, and plays a short chime you can turn off with *Play sound with water reminder*.
+- **Settings window, tray icon, launch at login,** and a single running copy.
+
+## Your data
+
+Everything stays on your PC: settings, clipboard history, notes and screen time in `%APPDATA%\app.notcher.desktop`, and received files in `Downloads\Notcher Drop`.
+
+- Updates never touch it.
+- Uninstalling keeps it too, unless you tick **Delete the application data** in the uninstaller (off by default). Files in `Downloads\Notcher Drop` are always kept.
+
+## Known limits
+
+- Windows only (10 version 1809 or later, and 11).
+- The taskbar meter shows on the main taskbar only, and not on a taskbar docked to the left or right.
+- Windows blocks drops from apps running as administrator into normal apps. Drag from a normal File Explorer window.
+- Files that aren't really on disk yet (inside a zip, an Outlook attachment, a phone shown in Explorer) can't be dropped; copy them to a folder first.
+- No app can draw over the Windows lock screen, so the island isn't shown there.
+- Notcher isn't code-signed yet, so SmartScreen may warn on first install, and Defender's machine-learning check has flagged new unsigned builds before (detections ending in `!ml`). You can report a false positive at https://www.microsoft.com/en-us/wdsi/filesubmission.
+
+## Troubleshooting
+
+Logs are in `%LOCALAPPDATA%\app.notcher.desktop\logs`. Please attach `Notcher.log` when you report a problem.
+
+- **Dropping files does nothing:** look for lines starting with `file drop:`. *drag approaching the notch* means Notcher saw the drag; *drag-enter* and *drop* mean Windows handed it the files; *refused* or *delivered nothing* lines say why it didn't.
+- **The taskbar meter is missing or misplaced:** look for lines starting with `taskbar meter:`; each show or hide says why. Check Settings › Taskbar if it doesn't come back.
+- **Weather says "Approximate":** Windows location is off for desktop apps. Turn on *Settings › Privacy & security › Location › Let desktop apps access your location*, or pick a place.
+- **The island doesn't appear:** make sure the Microsoft Edge WebView2 Runtime is installed (Settings › Apps). The installer fetches it if it's missing.
 
 ## Development
 
@@ -59,13 +95,13 @@ Requirements: Node 22+, Rust (stable), the Microsoft C++ Build Tools, and WebVie
 ```sh
 npm install
 npm run tauri dev        # run the app with hot reload
+npm run check            # type-check the UI
 npm test                 # UI unit tests
-npm run check            # type-check
 cd src-tauri && cargo test
 npm run tauri build      # installers in src-tauri/target/release/bundle (nsis, msi)
 ```
 
-**Designing in a browser:** run `npm run dev` and open `http://localhost:1420/?demo`. You get a wallpaper and a fake track. Add `&mode=open` or `&mode=live` to jump to a state, and `&tab=clips` (or `home`, `jot`, `focus`, `convert`, `weather`, `vitals`, `drop`) to pick a tab. In the console, `notcher.dispatch({type: "toggle"})` and `notcher.nextTrack()` drive the island.
+**Designing in a browser:** run `npm run dev` and open `http://localhost:1420/?demo`. You get a wallpaper and a fake track. Add `&mode=open` or `&mode=live` to jump to a state, and `&tab=home` (or `clips`, `jot`, `focus`, `convert`, `weather`, `vitals`, `drop`) to pick a tab. In the console, `notcher.dispatch({type: "toggle"})` and `notcher.nextTrack()` drive the island.
 
 ### Project layout
 
@@ -73,32 +109,31 @@ npm run tauri build      # installers in src-tauri/target/release/bundle (nsis, 
 src/                 Svelte + TypeScript UI
   island/            the island window (panel/ holds the open-panel tabs)
   settings/          the settings window
+  netspeed/          the taskbar speed meter
   lib/               springs, shape geometry, state machine, timers, settings, stores
+  styles/            themes and the bundled Ubuntu font
 src-tauri/src/       Rust
   island.rs          window geometry and hit regions
-  platform/          window behaviour (click-through, full-screen hiding, monitors, file drops)
-  media/             now playing through SMTC
-  clipboard/         clipboard history
-  db.rs              SQLite storage for clips and notes
-  vitals.rs          CPU, memory, disk, network and battery
-  netspeed.rs        the internet speed meter on the taskbar
+  platform/          click-through, full-screen tucking, monitors, file drops
+  netspeed.rs        the taskbar speed meter
   filedrop/          Notcher Drop: local server, QR code and the phone page
+  media/             now playing through Windows media controls (SMTC)
+  clipboard/         clipboard history
+  location.rs        Windows location for Weather
+  updater.rs         installs updates from GitHub Releases
+  db.rs              SQLite storage for clips and notes
 site/                the website (GitHub Pages)
+docs/                the product spec and release notes
 ```
 
 ### Releasing
 
-Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, add notes in `docs/releases/vX.Y.Z.md`, and merge to `main`. The Release workflow sees a version with no release yet, builds the installers and publishes them under the tag `vX.Y.Z` (it retries if GitHub has a hiccup). It can also be run by hand from the Actions tab. Installed copies pick up the new version at their next start. The website deploys from `site/` on every push to `main`.
+1. Bump the version in `package.json` (and `package-lock.json`), `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (and `Cargo.lock`).
+2. Add the notes in `docs/releases/vX.Y.Z.md`.
+3. Merge to `main`. The Release workflow sees a version with no release yet, builds the Setup.exe and .msi, and publishes them under the tag `vX.Y.Z` (retrying if GitHub has a hiccup). It can also be run by hand from the Actions tab.
 
-### Troubleshooting
-
-- **The island doesn't appear:** check that the WebView2 runtime is installed (Settings → Apps → "Microsoft Edge WebView2 Runtime"). The installer fetches it if it's missing.
-- **Weather or currency says it can't connect:** they need the internet. Weather comes from Open-Meteo, place search from Open-Meteo and OpenStreetMap, and rates from open.er-api.com. With Windows location off, your rough location comes from your IP address unless you pick a place.
-- **Dragging files onto the island does nothing:** drag from File Explorer to the top centre of the screen and hold there for a moment. If the app you drag from runs as administrator, Windows blocks the drop; drag from a normal Explorer window instead. The log lists each drag on lines starting with `file drop:`.
-- **The taskbar speed meter is missing:** it hides while the taskbar is hidden (full screen, or auto-hide). Check Settings › Taskbar if it doesn't come back.
-- **Logs:** `%LOCALAPPDATA%\app.notcher.desktop\logs`.
-- **Windows Defender or SmartScreen flags the installer:** Notcher isn't code-signed yet, and Defender's machine-learning check sometimes flags new unsigned apps (detections ending in `!ml`). Report it as a false positive at https://www.microsoft.com/en-us/wdsi/filesubmission.
+Installed copies pick up the new version the next time they start. The website deploys from `site/` on every push to `main`.
 
 ## License
 
-MIT © 2026 Dipanjan Banerjee
+MIT © 2026 Dipanjan Banerjee. The bundled Ubuntu font is under the [Ubuntu Font Licence 1.0](src/styles/fonts/ubuntu/UFL.txt).

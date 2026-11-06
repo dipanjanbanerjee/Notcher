@@ -16,9 +16,15 @@ describe("updates", () => {
       assets: [
         { name: "Notcher_1.0.1_x64-setup.exe", browser_download_url: "https://example/a.exe" },
         { name: "Notcher-Setup.exe", browser_download_url: "https://example/b.exe" },
+        { name: "Notcher_1.0.1_x64_en-US.msi", browser_download_url: "https://example/c.msi" },
       ],
     });
-    expect(r).toEqual({ version: "1.0.1", url: "https://example/b.exe", page: "https://github.com/x/y/releases/tag/v1.0.1" });
+    expect(r).toEqual({
+      version: "1.0.1",
+      url: "https://example/b.exe",
+      msiUrl: "https://example/c.msi",
+      page: "https://github.com/x/y/releases/tag/v1.0.1",
+    });
     expect(parseRelease({ tag_name: "v2", draft: true, assets: [] })).toBeNull();
     expect(parseRelease({ tag_name: "v2", assets: [{ name: "x.msi", browser_download_url: "u" }] })).toBeNull();
     expect(parseRelease({ tag_name: "nightly", assets: [{ name: "Notcher-Setup.exe", browser_download_url: "u" }] })).toBeNull();

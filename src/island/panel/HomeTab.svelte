@@ -391,8 +391,9 @@
     padding-left: 4px;
   }
   .clock { display: flex; align-items: baseline; gap: 4px; }
-  .big { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .ampm { font-size: 13px; color: var(--muted); }
+  .big { font-family: var(--clock-font); font-size: 40px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .ampm { font-family: var(--clock-font); font-size: 13px; color: var(--muted); }
+  .time .muted { font-family: var(--clock-font); }
   .muted { color: var(--muted); font-size: 12px; }
   .tile {
     border-radius: 16px;

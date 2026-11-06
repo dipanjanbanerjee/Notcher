@@ -13,6 +13,7 @@ use super::{emit_pointer, PlatformMode};
 use crate::island::{fullscreen_on_monitor, MonitorRect, StackedWindow};
 use crate::island::{hover_changed, to_window_logical, HitRegion, WINDOW_WIDTH};
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::time::{Duration, Instant};
 use tauri::{Manager, Runtime, WebviewWindow};
 use windows::core::BOOL;
 use windows::Win32::{
@@ -32,10 +33,10 @@ use windows::Win32::{
             QUNS_RUNNING_D3D_FULL_SCREEN,
         },
         WindowsAndMessaging::{
-            GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
-            GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed, GWL_EXSTYLE,
-            GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, GW_OWNER, WS_CAPTION, WS_EX_TOOLWINDOW,
-            WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+            GetClassNameW, GetCursorPos, GetForegroundWindow, GetSystemMetrics, GetTopWindow,
+            GetWindow, GetWindowLongW, GetWindowRect, IsIconic, IsWindowVisible, IsZoomed,
+            GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, GW_OWNER, SM_CXDRAG, SM_CYDRAG,
+            WS_CAPTION, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
         },
     },
 };
@@ -56,6 +57,8 @@ pub fn prepare_island<R: Runtime>(window: &WebviewWindow<R>) -> PlatformMode {
     }
     // Start fully click-through; the watcher enables input once the cursor is on the island.
     let _ = window.set_ignore_cursor_events(true);
+    // Runs on the main thread (from setup), which the drop catcher must live on.
+    super::win_drop::create_catcher(window.app_handle());
     PlatformMode::default()
 }
 
@@ -97,15 +100,24 @@ pub fn monitors<R: Runtime>(_window: &WebviewWindow<R>) -> Vec<MonitorRect> {
     out
 }
 
-/// While something is being dragged, the island accepts drops from this area around
-/// the top centre of its window, in logical pixels. That way files can be dropped on
-/// the island even when it is tucked into its thin tab or resting small.
+/// While something is being dragged, the drop catcher covers this area around the top
+/// centre of the island window (and the island itself when it is bigger), in logical
+/// pixels. That way files can be dropped on the island even when it is tucked into its
+/// thin tab or resting small.
 const DROP_ZONE: HitRegion = HitRegion {
     x: (WINDOW_WIDTH - 380.0) / 2.0,
     y: 0.0,
     width: 380.0,
     height: 60.0,
 };
+
+/// The catcher comes out once a drag is this close to the drop zone (logical pixels),
+/// so it is already in place when the files arrive over the notch.
+const DROP_APPROACH: f64 = 160.0;
+
+/// After the button is released, the catcher stays a moment so Windows can finish
+/// handing over the drop.
+const CATCHER_LINGER: Duration = Duration::from_millis(400);
 
 /// A mouse button is held down: something is being dragged (a window by its title
 /// bar, a widget, files from Explorer) or selected.
@@ -115,21 +127,81 @@ fn button_down() -> bool {
         .any(|key| unsafe { GetAsyncKeyState(key.0 as i32) } as u16 & 0x8000 != 0)
 }
 
+/// How far the pointer must move with a button held before it counts as a drag, in
+/// physical pixels (Windows' own drag threshold, at least 4).
+fn drag_threshold() -> (i32, i32) {
+    unsafe {
+        (
+            GetSystemMetrics(SM_CXDRAG).max(4),
+            GetSystemMetrics(SM_CYDRAG).max(4),
+        )
+    }
+}
+
 /// How many pointer checks pass between looks for new web view windows (about 0.4 s).
 const DROP_TARGET_EVERY: u32 = 25;
+
+/// The drop catcher's state during one press of a mouse button.
+#[derive(Default)]
+struct DragWatch {
+    /// Where the button went down, in physical pixels.
+    pressed_at: Option<(i32, i32)>,
+    /// The button went down on the island itself.
+    pressed_on_island: bool,
+    /// The catcher is over the notch, at this physical rectangle.
+    shown: Option<RECT>,
+    /// When the button was released while the catcher was out.
+    released: Option<Instant>,
+    /// Where the pointer was when the button was released.
+    released_at: (i32, i32),
+    /// Drags Notcher's handlers had seen when the catcher came out.
+    enters_before: u32,
+}
 
 #[derive(Default)]
 pub struct PointerTracker {
     inside: Option<bool>,
-    /// Whether the window currently takes mouse input (and therefore drops).
+    /// Whether the window currently takes mouse input.
     accepting: Option<bool>,
     /// Cursor position on the previous check, in physical pixels.
     last_cursor: Option<(i32, i32)>,
-    /// A drag is near the island, so it is taking drops.
-    drag_near: bool,
+    drag: DragWatch,
     /// Summary of the island's inner windows when drop handlers were last put on them.
     children: Option<u64>,
     checks: u32,
+}
+
+/// `region` (logical island-window pixels) on screen, in physical pixels.
+fn to_screen(region: HitRegion, origin: (i32, i32), scale: f64) -> RECT {
+    RECT {
+        left: origin.0 + (region.x * scale).floor() as i32,
+        top: origin.1 + (region.y * scale).floor() as i32,
+        right: origin.0 + ((region.x + region.width) * scale).ceil() as i32,
+        bottom: origin.1 + ((region.y + region.height) * scale).ceil() as i32,
+    }
+}
+
+fn union(a: HitRegion, b: HitRegion) -> HitRegion {
+    if b.width <= 0.0 || b.height <= 0.0 {
+        return a;
+    }
+    let x = a.x.min(b.x);
+    let y = a.y.min(b.y);
+    HitRegion {
+        x,
+        y,
+        width: (a.x + a.width).max(b.x + b.width) - x,
+        height: (a.y + a.height).max(b.y + b.height) - y,
+    }
+}
+
+fn inflate(r: HitRegion, by: f64) -> HitRegion {
+    HitRegion {
+        x: r.x - by,
+        y: r.y,
+        width: r.width + by * 2.0,
+        height: r.height + by,
+    }
 }
 
 impl PointerTracker {
@@ -157,26 +229,19 @@ impl PointerTracker {
         self.last_cursor = Some((cursor.x, cursor.y));
         let inside = region.contains(x, y);
         let held = button_down();
-        // Dragging toward the top of the screen: stop being click-through there so
-        // Windows offers us a file drop. This does not count as hovering; the island
-        // opens only when files actually arrive over it (the drop handler says so).
-        let drag_near = held && (inside || DROP_ZONE.contains(x, y));
-        if drag_near != self.drag_near {
-            self.drag_near = drag_near;
-            if drag_near {
-                log::debug!(
-                    "file drop: drag near the island at ({}, {}) px, scale {scale}",
-                    cursor.x,
-                    cursor.y
-                );
-                // Make sure the handlers are in place before the files arrive.
-                self.keep_drop_targets(window, hwnd, true);
-            }
-        }
-        let accepting = inside || drag_near;
-        if self.accepting != Some(accepting) {
-            self.accepting = Some(accepting);
-            let _ = window.set_ignore_cursor_events(!accepting);
+        self.watch_drag(
+            window,
+            hwnd,
+            held,
+            (cursor.x, cursor.y),
+            (x, y),
+            (rect.left, rect.top),
+            scale,
+            region,
+        );
+        if self.accepting != Some(inside) {
+            self.accepting = Some(inside);
+            let _ = window.set_ignore_cursor_events(!inside);
         }
         // While a button is held, the island neither opens nor closes on hover: you are
         // moving a window or a widget, not reaching for Notcher. A file drag still opens
@@ -188,6 +253,93 @@ impl PointerTracker {
             self.inside = Some(inside);
             emit_pointer(window, inside);
         }
+    }
+
+    /// Brings the drop catcher out while something is dragged toward the notch, keeps
+    /// it over the island as the island grows, and takes it away once the drag ends.
+    #[allow(clippy::too_many_arguments)]
+    fn watch_drag<R: Runtime>(
+        &mut self,
+        window: &WebviewWindow<R>,
+        hwnd: HWND,
+        held: bool,
+        cursor: (i32, i32),
+        logical: (f64, f64),
+        origin: (i32, i32),
+        scale: f64,
+        region: HitRegion,
+    ) {
+        let d = &mut self.drag;
+        if !held {
+            d.pressed_at = None;
+            let Some(shown) = d.shown else { return };
+            let released = *d.released.get_or_insert_with(|| {
+                d.released_at = cursor;
+                Instant::now()
+            });
+            if released.elapsed() < CATCHER_LINGER {
+                return;
+            }
+            super::win_drop::hide_catcher();
+            d.shown = None;
+            d.released = None;
+            let (rx, ry) = d.released_at;
+            let over = rx >= shown.left && rx < shown.right && ry >= shown.top && ry < shown.bottom;
+            if over && super::win_drop::drag_enters() == d.enters_before {
+                log::warn!(
+                    "file drop: a drag was released over the notch at ({rx}, {ry}) px but Windows delivered nothing to Notcher. \
+                     It was not a file drag, came from an app running as administrator, or another window sat on top"
+                );
+            } else {
+                log::info!("file drop: drag over, drop catcher put away");
+            }
+            return;
+        }
+        d.released = None;
+        if d.pressed_at.is_none() {
+            d.pressed_at = Some(cursor);
+            // A press on the island itself starts a drag inside it (a Home widget, a
+            // slider, selected text): the web view handles that, not the catcher.
+            d.pressed_on_island = region.contains(logical.0, logical.1);
+        }
+        let start = d.pressed_at.unwrap_or(cursor);
+        let (tx, ty) = drag_threshold();
+        let dragging = (cursor.0 - start.0).abs() >= tx || (cursor.1 - start.1).abs() >= ty;
+        let zone = union(DROP_ZONE, region);
+        let near = dragging
+            && !d.pressed_on_island
+            && inflate(zone, DROP_APPROACH).contains(logical.0, logical.1);
+        if !near {
+            if d.shown.take().is_some() {
+                super::win_drop::hide_catcher();
+                log::info!("file drop: the drag moved away from the notch");
+            }
+            return;
+        }
+        let target = to_screen(zone, origin, scale);
+        if d.shown == Some(target) {
+            return;
+        }
+        if d.shown.is_none() {
+            d.enters_before = super::win_drop::drag_enters();
+            log::info!(
+                "file drop: drag approaching the notch at ({}, {}) px, scale {scale}; drop catcher at ({}, {})-({}, {})",
+                cursor.0,
+                cursor.1,
+                target.left,
+                target.top,
+                target.right,
+                target.bottom
+            );
+            if super::win_drop::catcher().is_none() {
+                log::warn!("file drop: no drop catcher; relying on the web view's handlers");
+            }
+            // Make sure the web view's own handlers are in place too.
+            self.keep_drop_targets(window, hwnd, true);
+        }
+        let d = &mut self.drag;
+        d.shown = Some(target);
+        super::win_drop::show_catcher(target);
     }
 
     /// Puts drop handlers on the island's windows when WebView2 has added or replaced
@@ -212,6 +364,9 @@ impl PointerTracker {
 
     /// Forces the next update to re-apply the click-through state (e.g. after a move).
     pub fn invalidate(&mut self) {
+        if self.drag.shown.take().is_some() {
+            super::win_drop::hide_catcher();
+        }
         self.inside = None;
         self.accepting = None;
         self.last_cursor = None;
@@ -226,14 +381,15 @@ fn hwnd_of<R: Runtime>(window: &WebviewWindow<R>) -> Option<HWND> {
     }
 }
 
-fn is_shell_window(hwnd: HWND) -> bool {
-    let mut buf = [0u16; 64];
+fn class_name(hwnd: HWND) -> String {
+    let mut buf = [0u16; 128];
     let len = unsafe { GetClassNameW(hwnd, &mut buf) } as usize;
-    let class = String::from_utf16_lossy(&buf[..len.min(buf.len())]);
-    matches!(
-        class.as_str(),
-        "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
-    )
+    String::from_utf16_lossy(&buf[..len.min(buf.len())])
+}
+
+/// The desktop, a taskbar, or one of the shell flyouts that open from the taskbar.
+fn is_shell_window(hwnd: HWND) -> bool {
+    crate::island::is_shell_class(&class_name(hwnd))
 }
 
 fn monitor_rect(monitor: HMONITOR) -> Option<MonitorRect> {
@@ -372,17 +528,17 @@ pub fn fullscreen_app_active<R: Runtime>(
     fullscreen_on_monitor(&windows, &monitor)
 }
 
-/// True when the taskbar `taskbar` can't be seen: hidden, auto-hidden off the edge of
-/// the screen, or covered by a full-screen window (a video, a game, a browser in F11).
+/// Why the taskbar `taskbar` can't be seen right now, or `None` when it can: it is
+/// hidden, auto-hidden off the edge of the screen, or covered by a full-screen window
+/// (a video, a game, a browser in F11 or a full-screen YouTube video).
 ///
-/// It walks the z-order from the top down to the taskbar, so it answers the question
-/// "is anything full-screen in front of the taskbar on its monitor?" directly, the same
-/// way the island decides to tuck away, instead of asking the shell whether a
-/// full-screen app is running somewhere.
-pub(crate) fn taskbar_hidden(taskbar: HWND) -> bool {
+/// Shell flyouts that open from the taskbar (Start, Search, Task View…) are ignored:
+/// some of them fill the whole monitor while open, and counting them made the meter
+/// vanish whenever the taskbar was clicked.
+pub(crate) fn taskbar_hidden_reason(taskbar: HWND) -> Option<String> {
     unsafe {
         if !IsWindowVisible(taskbar).as_bool() {
-            return true;
+            return Some("the taskbar window is hidden".into());
         }
         let mut cloaked: u32 = 0;
         let _ = DwmGetWindowAttribute(
@@ -392,11 +548,11 @@ pub(crate) fn taskbar_hidden(taskbar: HWND) -> bool {
             std::mem::size_of::<u32>() as u32,
         );
         if cloaked != 0 {
-            return true;
+            return Some("the taskbar is cloaked".into());
         }
         let mut bar = RECT::default();
         if GetWindowRect(taskbar, &mut bar).is_err() {
-            return true;
+            return Some("the taskbar has no position".into());
         }
         let monitor_handle = MonitorFromWindow(taskbar, MONITOR_DEFAULTTONEAREST);
         let mut info = MONITORINFO {
@@ -404,14 +560,14 @@ pub(crate) fn taskbar_hidden(taskbar: HWND) -> bool {
             ..Default::default()
         };
         if !GetMonitorInfoW(monitor_handle, &mut info).as_bool() {
-            return false;
+            return None;
         }
         let m = info.rcMonitor;
         if !crate::netspeed::mostly_on_screen(
             (bar.left, bar.top, bar.right, bar.bottom),
             (m.left, m.top, m.right, m.bottom),
         ) {
-            return true;
+            return Some("the taskbar is auto-hidden".into());
         }
         let own = island_hwnd().unwrap_or_default();
         let covers = |hwnd: HWND| {
@@ -422,27 +578,48 @@ pub(crate) fn taskbar_hidden(taskbar: HWND) -> bool {
                 && r.right >= m.right
                 && r.bottom >= m.bottom
         };
-        // The app in front filling the taskbar's screen: a video player's full-screen
-        // window is often owned by its main window, which the walk below skips.
+        // The app in front, on the taskbar's monitor, filling that monitor. Browsers
+        // showing a full-screen video make the shell report "busy" rather than a D3D
+        // full-screen app, so the window's own rectangle is what decides. A video
+        // player's full-screen window is often owned by its main window, which the
+        // walk below skips, so this has to come first.
         let foreground = GetForegroundWindow();
-        if !foreground.is_invalid()
+        let fg_usable = !foreground.is_invalid()
             && foreground != own
-            && !is_shell_window(foreground)
             && IsWindowVisible(foreground).as_bool()
-            && covers(foreground)
-        {
-            return true;
+            && !is_shell_window(foreground)
+            && MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST) == monitor_handle;
+        if fg_usable && covers(foreground) {
+            return Some(format!(
+                "full-screen window in front ({})",
+                class_name(foreground)
+            ));
         }
+        // Exclusive full-screen games and presentations, as the shell sees them.
+        if fg_usable {
+            if let Ok(state) = SHQueryUserNotificationState() {
+                if state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE {
+                    return Some(format!(
+                        "full-screen game or presentation ({})",
+                        class_name(foreground)
+                    ));
+                }
+            }
+        }
+        // Anything else stacked above the taskbar that fills its monitor.
         let mut hwnd = GetTopWindow(None).unwrap_or_default();
         let mut guard = 0;
         while !hwnd.is_invalid() && hwnd != taskbar && guard < 1024 {
             guard += 1;
             if is_candidate(hwnd, own) && covers(hwnd) {
-                return true;
+                return Some(format!(
+                    "full-screen window above the taskbar ({})",
+                    class_name(hwnd)
+                ));
             }
             hwnd = GetWindow(hwnd, GW_HWNDNEXT).unwrap_or_default();
         }
-        false
+        None
     }
 }
 

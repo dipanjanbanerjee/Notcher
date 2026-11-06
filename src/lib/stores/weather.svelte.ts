@@ -72,7 +72,16 @@ class WeatherStore {
     if (fresh && !force) return;
     if (!inTauri) {
       const p = this.picked;
-      this.now = { ...PREVIEW, place: p?.name ?? PREVIEW.place, detail: p?.detail ?? PREVIEW.detail, at: Date.now() };
+      // ?approx previews the "location is off" hint.
+      const approx = !p && new URLSearchParams(location.search).has("approx");
+      this.now = {
+        ...PREVIEW,
+        place: p?.name ?? PREVIEW.place,
+        detail: p?.detail ?? PREVIEW.detail,
+        approximate: approx,
+        locationNote: approx ? "off" : null,
+        at: Date.now(),
+      };
       this.shownFor = key;
       return;
     }
@@ -81,9 +90,14 @@ class WeatherStore {
     try {
       let place: Place;
       let approximate = false;
+      let extra: Pick<Weather, "locationNote" | "accuracy"> = {};
       if (picked) place = picked;
-      else ({ place, approximate } = await locateAutomatically(await preciseLocation()));
-      const weather = await fetchWeather(place, approximate);
+      else {
+        const auto = await locateAutomatically(await preciseLocation());
+        ({ place, approximate } = auto);
+        extra = { locationNote: auto.note, accuracy: auto.accuracy };
+      }
+      const weather = await fetchWeather(place, approximate, extra);
       if (key !== keyOf(this.picked)) return;
       this.now = weather;
       this.shownFor = key;

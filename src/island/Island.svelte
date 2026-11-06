@@ -488,7 +488,7 @@
         const install = atStartup && prefs.autoUpdate;
         showLiveActivity({ kind: "update", version: release.version, installing: install }, install ? 6000 : 6500);
         if (install) {
-          const error = await installUpdate(release.url, release.version);
+          const error = await installUpdate(release.url, release.version, release.msiUrl);
           if (error) console.warn("[notcher] update failed:", error);
         }
       } catch {
@@ -823,25 +823,20 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  /* Date and time share one quiet style; tabular digits keep the seconds from jiggling. */
+  /* Date and time: plain Ubuntu type, no glow or shadow, so they read cleanly on every
+     theme. Tabular digits keep the seconds from jiggling. The island's own Glow
+     (around the shape) is separate and unchanged. */
   .rest-date,
   .rest-time,
   .rest-time small {
+    font-family: var(--clock-font);
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 400;
+    text-shadow: none;
   }
-  /* A soft halo, tinted like the island's glow, so the resting text lights up the
-     dark around it instead of sitting flat on black. */
-  .rest-date,
-  .rest-time {
-    --halo: var(--glow, var(--accent));
-    text-shadow:
-      0 0 6px color-mix(in srgb, var(--halo) 75%, transparent),
-      0 0 16px color-mix(in srgb, var(--halo) 45%, transparent);
-  }
-  .rest-date { color: color-mix(in srgb, var(--fg) 78%, var(--halo)); }
-  .rest-time { color: var(--fg); font-weight: 600; letter-spacing: 0.01em; }
-  .rest-time small { color: color-mix(in srgb, var(--fg) 75%, transparent); font-weight: 500; }
+  .rest-date { color: var(--muted); }
+  .rest-time { color: var(--fg); font-weight: 500; letter-spacing: 0.02em; }
+  .rest-time small { color: var(--muted); }
   .rest-time small {
     margin-left: 4px;
   }

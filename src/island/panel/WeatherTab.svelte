@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import Icon, { type IconName } from "../../components/Icon.svelte";
   import { weather } from "../../lib/stores/weather.svelte";
+  import { openLocationSettings } from "../../lib/bridge";
   import { dayName, formatHm, formatTemp, hourName, skyIcon, skyLabel, skyOf, type Place } from "../../lib/weather";
 
   $effect(() => weather.watch());
@@ -10,6 +11,33 @@
   const unit = $derived(weather.unit);
   const wind = $derived(w ? (unit === "f" ? `${Math.round(w.wind / 1.609344)} mph` : `${Math.round(w.wind)} km/h`) : "");
   const icon = (code: number, isDay = true) => skyIcon(code, isDay) as IconName;
+
+  // ---- how precise the automatic place is
+
+  const note = $derived(w?.approximate ? (w.locationNote ?? "off") : null);
+  const HINT_SEEN = "notcher.locationHintSeen";
+  let hintOpen = $state(false);
+  // Explain once, the first time the place is only a guess; the badge reopens it.
+  $effect(() => {
+    if (note !== "off") return;
+    try {
+      if (localStorage.getItem(HINT_SEEN)) return;
+      localStorage.setItem(HINT_SEEN, "1");
+    } catch {
+      return;
+    }
+    hintOpen = true;
+  });
+  const hintText = $derived(
+    note === "off"
+      ? "This is a guess from your internet connection. For your exact area, turn on Settings › Privacy & security › Location › Let desktop apps access your location in Windows."
+      : note === "coarse"
+        ? `Windows only knows your rough area${w?.accuracy ? ` (within about ${Math.round(w.accuracy / 1000)} km)` : ""}. Turning on Wi-Fi helps it find you precisely.`
+        : "Windows couldn't find a precise position just now, so this is a guess from your internet connection. Refresh to try again.",
+  );
+  const placeTitle = $derived(
+    w && !w.approximate && w.accuracy ? `Found by Windows location, within about ${Math.round(w.accuracy)} m` : "Change place",
+  );
 
   // ---- choosing a place
 
@@ -84,14 +112,14 @@
 
 <div class="weather sky-{w ? skyOf(w.code) : 'none'}" class:night={w && !w.isDay}>
   <header>
-    <button class="place" title="Change place" onclick={openSearch}>
+    <button class="place" title={placeTitle} onclick={openSearch}>
       <Icon name="place" size={14} />
       <span class="name">{w?.place ?? weather.picked?.name ?? (weather.loading ? "Finding you…" : "Your location")}</span>
       {#if w?.detail}<span class="detail">{w.detail}</span>{/if}
       <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" /></svg>
     </button>
-    {#if w?.approximate}
-      <span class="approx" title="Guessed from your internet connection. Turn on Settings › Privacy & security › Location › Let desktop apps access your location in Windows for your exact area, or pick a place.">Approximate</span>
+    {#if note}
+      <button class="approx" aria-expanded={hintOpen} title={hintText} onclick={() => (hintOpen = !hintOpen)}>Approximate</button>
     {/if}
     <div class="right">
       <div class="unit" role="radiogroup" aria-label="Temperature unit">
@@ -165,6 +193,21 @@
     <div class="empty"><span class="muted">Checking the sky…</span></div>
   {/if}
 
+  {#if note && hintOpen}
+    <div class="hint-card" role="note">
+      <p>{hintText}</p>
+      <div class="row">
+        {#if note === "off"}
+          <button class="pill" onclick={() => void openLocationSettings()}><Icon name="place" size={14} />Open location settings</button>
+        {:else}
+          <button class="pill" onclick={() => weather.refresh(true)}><Icon name="refresh" size={14} />Try again</button>
+        {/if}
+        <button class="pill" onclick={openSearch}>Pick a place</button>
+        <button class="pill quiet" onclick={() => (hintOpen = false)}>Got it</button>
+      </div>
+    </div>
+  {/if}
+
   {#if searching}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="search" onkeydown={onKey}>
@@ -234,9 +277,21 @@
   .place .detail { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .chev { width: 14px; height: 14px; flex: none; align-self: center; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .approx {
-    font-size: 10.5px; padding: 2px 7px; border-radius: 999px; cursor: help; white-space: nowrap;
+    font: inherit; font-size: 10.5px; padding: 2px 7px; border: 0; border-radius: 999px; cursor: pointer; white-space: nowrap;
     color: #ffcf8a; background: rgb(255 180 80 / 0.12); box-shadow: inset 0 0 0 1px rgb(255 180 80 / 0.25);
   }
+  :global([data-theme="daylight"]) .approx,
+  :global([data-theme="paper"]) .approx { color: #9a5a00; }
+  .weather > .hint-card {
+    position: absolute; top: 40px; left: 12px; z-index: 2; max-width: 360px;
+    padding: 10px 12px; border-radius: 14px; background: var(--window-bg);
+    box-shadow: inset 0 0 0 1px var(--hairline), 0 10px 30px var(--shadow);
+    animation: hint-in 180ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  }
+  .hint-card p { margin: 0 0 8px; font-size: 11.5px; line-height: 1.4; color: var(--fg); }
+  .hint-card .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hint-card .quiet { background: transparent; }
+  @keyframes hint-in { from { opacity: 0; transform: translateY(-4px); } }
   .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
   .unit { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--surface-1); }
   .unit button {

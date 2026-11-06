@@ -30,7 +30,7 @@ pub(crate) use win_drop::restart_unelevated;
 #[cfg(windows)]
 use windows as backend;
 #[cfg(windows)]
-pub(crate) use windows::{is_above, taskbar_hidden};
+pub(crate) use windows::{is_above, taskbar_hidden_reason};
 
 /// Extra WebView2 switches for every Notcher window (Windows only).
 ///
