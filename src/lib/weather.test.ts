@@ -13,6 +13,7 @@ import {
   parseIpPlace,
   parseNominatim,
   parseNominatimReverse,
+  parseAirQuality,
   parseRates,
   placeKey,
   parseReverse,
@@ -166,5 +167,20 @@ describe("locationNoteOf", () => {
   it("tells location that is switched off from one that found nothing", () => {
     expect(locationNoteOf({ error: { kind: "off", message: "" } })).toBe("off");
     expect(locationNoteOf({ error: { kind: "unavailable", message: "" } })).toBe("unavailable");
+  });
+});
+
+describe("air quality", () => {
+  it("reads the current US AQI", () => {
+    expect(parseAirQuality({ current: { time: "2026-11-11T15:00", us_aqi: 42.4 } })).toBe(42);
+    expect(parseAirQuality({ current: { us_aqi: "153" } })).toBe(153);
+  });
+
+  it("is null when missing or nonsense", () => {
+    expect(parseAirQuality(null)).toBeNull();
+    expect(parseAirQuality({ current: {} })).toBeNull();
+    expect(parseAirQuality({ current: { us_aqi: null } })).toBeNull();
+    expect(parseAirQuality({ current: { us_aqi: -1 } })).toBeNull();
+    expect(parseAirQuality({ error: true, reason: "bad" })).toBeNull();
   });
 });

@@ -6,6 +6,9 @@ import { load, type Store } from "@tauri-apps/plugin-store";
 
 export type ThemeName = "obsidian" | "daylight" | "neon" | "paper";
 
+/** What the right side of the resting notch shows. */
+export type NotchRightSlot = "clock" | "weather_aqi";
+
 export interface Settings {
   theme: ThemeName;
   /** Ambient light around the island, tinted from cover art. */
@@ -50,6 +53,8 @@ export interface Settings {
   weatherLon: number;
   /** Celsius or Fahrenheit for the weather. */
   tempUnit: "c" | "f";
+  /** Right side of the resting notch: the clock, or temperature and air quality. */
+  notchRightSlot: NotchRightSlot;
   /** Check for a new version at startup and install it. */
   autoUpdate: boolean;
 }
@@ -84,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weatherLat: 0,
   weatherLon: 0,
   tempUnit: "c",
+  notchRightSlot: "clock",
   autoUpdate: true,
 };
 
@@ -118,6 +124,7 @@ export function sanitize(raw: Record<string, unknown>): Settings {
     out.weatherLon = 0;
   }
   if (out.tempUnit !== "f") out.tempUnit = "c";
+  if (out.notchRightSlot !== "weather_aqi") out.notchRightSlot = "clock";
   if (!(WATER_CHOICES as readonly number[]).includes(out.waterReminder)) out.waterReminder = DEFAULT_SETTINGS.waterReminder;
   return out;
 }

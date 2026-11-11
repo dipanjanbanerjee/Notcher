@@ -2,7 +2,8 @@ import { inTauri, notifySettingsChanged, preciseLocation } from "../bridge";
 import { loadSettings, saveSetting } from "../settings";
 import { fetchRates, fetchWeather, locateAutomatically, searchPlaces, type Place, type Rates, type TempUnit, type Weather } from "../weather";
 
-const WEATHER_KEY = "notcher.weather.v2";
+// v3 added air quality; older caches are fetched again so the AQI shows up.
+const WEATHER_KEY = "notcher.weather.v3";
 const RATES_KEY = "notcher.rates";
 /** Weather older than this is fetched again. */
 const WEATHER_TTL = 15 * 60_000;
@@ -192,6 +193,7 @@ const PREVIEW: Weather = {
   code: 2,
   isDay: true,
   uv: 6,
+  aqi: 42,
   sunrise: "05:43",
   sunset: "17:01",
   hours: PREVIEW_HOURS.map((temp, i) => ({

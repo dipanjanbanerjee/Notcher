@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Art from "../components/Art.svelte";
   import Equalizer from "../components/Equalizer.svelte";
   import Icon from "../components/Icon.svelte";
@@ -9,6 +9,8 @@
   import { focus } from "../lib/stores/focus.svelte";
   import { notes } from "../lib/stores/notes.svelte";
   import { vitals } from "../lib/stores/vitals.svelte";
+  import { weather } from "../lib/stores/weather.svelte";
+  import { rightSlot } from "../lib/right-slot";
   import {
     focusIsland,
     inTauri,
@@ -48,7 +50,7 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { findUpdate } from "../lib/updates";
   import { formatBytes } from "../lib/stores/vitals.svelte";
-  import { formatClock, formatDuration, formatShortDate, meridiem } from "../lib/time";
+  import { formatDuration, formatShortDate } from "../lib/time";
 
   /** Must match WINDOW_WIDTH in src-tauri/src/island.rs. */
   const WINDOW_WIDTH = 760;
@@ -266,8 +268,39 @@
   /** A water reminder that came due during a full-screen app, shown once it closes. */
   let waterDue = false;
 
+  // ------------------------------------------------------------- right slot
+
+  /** Clock, or temperature and AQI from the shared weather store (clock until it loads). */
+  const slot = $derived(rightSlot(settings.notchRightSlot, clock, settings.clock24h, weather.now, weather.unit));
+  // The resting notch keeps the weather fresh only while it is chosen.
+  $effect(() => {
+    if (settings.notchRightSlot === "weather_aqi") return weather.watch();
+  });
+  /**
+   * Nothing on screen needs seconds: the notch rests showing weather and no focus timer
+   * runs. The tick then slows down and the view only updates when the minute changes
+   * (for the date). The tick itself keeps going, slowly, because focus sessions and the
+   * water reminder count time with it.
+   */
+  const slowTick = $derived(slot.kind === "weather" && mode === "rest" && !focus.active);
+  /** Under focus.update's 5 s cap, so the water reminder keeps counting every second of use. */
+  const SLOW_TICK_MS = 4000;
+  let tick: ReturnType<typeof setTimeout> | undefined;
+  function scheduleTick() {
+    const t = Date.now();
+    onTick(t);
+    // Otherwise tick right after each new second so the clock's seconds change evenly.
+    tick = setTimeout(scheduleTick, slowTick ? SLOW_TICK_MS : 1000 - (t % 1000) + 2);
+  }
+  // Starts the tick, and brings the clock back at once when seconds are needed again.
+  $effect(() => {
+    if (slowTick) return;
+    clearTimeout(tick);
+    untrack(scheduleTick);
+  });
+
   function onTick(t: number) {
-    now = t;
+    if (!slowTick || Math.floor(t / 60_000) !== Math.floor(now / 60_000)) now = t;
     const { finished, water } = focus.update(t, userActive);
     if (water) waterDue = true;
     if (finished) {
@@ -389,6 +422,8 @@
         else animateTo(mode);
         reportHitRegion(geometry);
       },
+      /** Switches the right side of the resting notch: "clock" or "weather_aqi". */
+      slot: (value: Settings["notchRightSlot"] = "weather_aqi") => (settings = { ...settings, notchRightSlot: value }),
       /** Pretends a file arrived from the phone. */
       water: () => showLiveActivity({ kind: "water" }, 5000),
       received: (name = "IMG_2044.jpg") => showLiveActivity({ kind: "drop", name, size: "2.8 MB" }, 3800),
@@ -467,15 +502,6 @@
         dispatch({ type: "escape" });
       }),
     );
-
-    // Tick right after each new second so the clock's seconds change evenly.
-    let tick: ReturnType<typeof setTimeout>;
-    const scheduleTick = () => {
-      const t = Date.now();
-      onTick(t);
-      tick = setTimeout(scheduleTick, 1000 - (t % 1000) + 2);
-    };
-    scheduleTick();
 
     // Updates: shortly after Notcher starts, install a newer release if there is one
     // (when "Install updates automatically" is on). Later checks only say it's ready.
@@ -632,8 +658,12 @@
           {:else}
             <span class="rest-date">{formatShortDate(clock)}</span>
           {/if}
-          <span class="rest-time">
-            {formatClock(clock, settings.clock24h, true)}{#if !settings.clock24h}<small>{meridiem(clock)}</small>{/if}
+          <!-- Fixed width, so switching between clock and weather (or the seconds ticking)
+               never moves the date or the equalizer. -->
+          <span class="rest-slot">
+            {#key slot.kind}
+              <span class="rest-time">{slot.primary}{#if slot.secondary}<small>{slot.secondary}</small>{/if}</span>
+            {/key}
           </span>
         </div>
       {:else}
@@ -839,6 +869,21 @@
   .rest-time small { color: var(--muted); }
   .rest-time small {
     margin-left: 4px;
+  }
+  /* Wide enough for "12:59:59 PM" and for "104°F AQI 500", so the row never shifts. */
+  .rest-slot {
+    display: inline-block;
+    min-width: 88px;
+  }
+  /* A short fade when the slot switches between clock and weather. It runs once per
+     switch, not on every second. */
+  .rest-slot .rest-time {
+    display: inline-block;
+    animation: slot-in 240ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  }
+  @keyframes slot-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
   }
   .live-row {
     height: 100%;

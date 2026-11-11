@@ -56,6 +56,8 @@ export interface Weather {
   code: number;
   isDay: boolean;
   uv: number | null;
+  /** US air quality index (0–500) at the same place; null when it couldn't be fetched. */
+  aqi?: number | null;
   /** Local times, hh:mm. */
   sunrise: string | null;
   sunset: string | null;
@@ -206,6 +208,12 @@ export function parseForecast(json: unknown, place: Pick<Weather, "place" | "det
     days,
     at: when,
   };
+}
+
+/** Reads the current US AQI from an Open-Meteo air-quality response; null when missing. */
+export function parseAirQuality(json: unknown): number | null {
+  const v = num((json as { current?: Record<string, unknown> } | null)?.current?.us_aqi);
+  return v === null || v < 0 ? null : Math.round(v);
 }
 
 /** Reads Open-Meteo geocoding results. */
@@ -439,9 +447,13 @@ export async function fetchWeather(place: Place, approximate: boolean, extra: Pi
     "&hourly=temperature_2m,weather_code,precipitation_probability,is_day" +
     "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max" +
     "&timezone=auto&forecast_days=7";
-  const weather = parseForecast(await getJson(url), { place: place.name, detail: place.detail, approximate });
+  // Air quality comes from Open-Meteo's sister service for the same coordinates. It is
+  // fetched alongside and never holds up or fails the weather itself.
+  const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat}&longitude=${place.lon}&current=us_aqi`;
+  const [forecast, aqi] = await Promise.all([getJson(url), getJson(airUrl).then(parseAirQuality, () => null)]);
+  const weather = parseForecast(forecast, { place: place.name, detail: place.detail, approximate });
   if (!weather) throw new Error("The weather service sent something odd");
-  return { ...weather, ...extra };
+  return { ...weather, aqi, ...extra };
 }
 
 /** Exchange rates per US dollar, from open.er-api.com (free, no key, daily). */

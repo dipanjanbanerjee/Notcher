@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: https: http://asset.localhost asset:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://ipwho.is https://get.geojs.io https://open.er-api.com https://api.bigdatacloud.net https://nominatim.openstreetmap.org https://api.github.com"
+      "csp": "default-src 'self'; img-src 'self' data: https: http://asset.localhost asset:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://api.open-meteo.com https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com https://ipwho.is https://get.geojs.io https://open.er-api.com https://api.bigdatacloud.net https://nominatim.openstreetmap.org https://api.github.com"
     }
   },
   "bundle": {
