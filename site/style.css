@@ -105,6 +105,10 @@ h1 em {
   font-style: normal; background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent;
   background-size: 200% 100%; animation: shimmer 8s ease-in-out infinite;
 }
+h1 .h1-name {
+  display: block; margin-bottom: 14px; font-size: clamp(15px, 1.6vw, 17px); letter-spacing: 0.18em;
+  text-transform: uppercase; font-weight: 600; color: var(--muted);
+}
 @keyframes shimmer { 50% { background-position: 100% 0; } }
 .lede { max-width: 600px; margin: 22px auto 0; font-size: clamp(16px, 2vw, 18.5px); color: var(--muted); }
 .cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
