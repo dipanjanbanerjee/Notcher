@@ -2,7 +2,7 @@
 
 **A living island at the top of your Windows screen.** Music, clipboard history, notes, timers, weather, a unit converter and system stats are one hover away, and Notcher Drop moves files between your phone and PC with a QR code. Built for Windows 10 and 11.
 
-**[Download Notcher for Windows](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe)** · [Website](https://dipanjanbanerjee.github.io/notcher/) · [All releases](https://github.com/dipanjanbanerjee/notcher/releases)
+**[Download Notcher for Windows](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe)** · [Website](https://dipanjanbanerjee.github.io/Notcher/) · [All releases](https://github.com/dipanjanbanerjee/notcher/releases)
 
 Latest version: **1.1.1** ([what's new](docs/releases/v1.1.1.md))
 
