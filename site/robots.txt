@@ -3,4 +3,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://dipanjanbanerjee.github.io/notcher/sitemap.xml
+Sitemap: https://dipanjanbanerjee.github.io/Notcher/sitemap.xml
