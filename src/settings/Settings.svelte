@@ -152,6 +152,16 @@
       onchange={(v) => update("followCursor", v)}
     />
     <Toggle label="24-hour clock" hint="Off shows AM/PM" checked={settings.clock24h} onchange={(v) => update("clock24h", v)} />
+    <Choice
+      label="Right side of the notch"
+      hint="Weather shows the temperature and air quality, and the clock until the weather loads"
+      value={settings.notchRightSlot}
+      options={[
+        { id: "clock", label: "Clock" },
+        { id: "weather_aqi", label: "Weather & AQI" },
+      ]}
+      onchange={(v) => update("notchRightSlot", v)}
+    />
   </section>
 
   <section>

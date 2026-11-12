@@ -33,3 +33,11 @@ describe("water reminder setting", () => {
     expect(sanitize({ waterSound: "no" }).waterSound).toBe(true);
   });
 });
+
+describe("notch right slot", () => {
+  it("defaults to the clock and only accepts known choices", () => {
+    expect(sanitize({}).notchRightSlot).toBe("clock");
+    expect(sanitize({ notchRightSlot: "weather_aqi" }).notchRightSlot).toBe("weather_aqi");
+    expect(sanitize({ notchRightSlot: "radar" }).notchRightSlot).toBe("clock");
+  });
+});
