@@ -1,0 +1,6 @@
+# Google reads robots.txt only from the domain root, so this file is a
+# convenience for other crawlers. Submit sitemap.xml in Search Console.
+User-agent: *
+Allow: /
+
+Sitemap: https://dipanjanbanerjee.github.io/notcher/sitemap.xml
