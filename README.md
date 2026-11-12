@@ -4,7 +4,7 @@
 
 **[Download Notcher for Windows](https://github.com/dipanjanbanerjee/notcher/releases/latest/download/Notcher-Setup.exe)** · [Website](https://dipanjanbanerjee.github.io/notcher/) · [All releases](https://github.com/dipanjanbanerjee/notcher/releases)
 
-Latest version: **1.1.0** ([what's new](docs/releases/v1.1.0.md))
+Latest version: **1.1.1** ([what's new](docs/releases/v1.1.1.md))
 
 ## Screenshots
 
@@ -26,7 +26,7 @@ An `.msi` package is also published with each release, for managed PCs. It insta
 
 ### The island
 
-- **Resting:** a slim notch with the date and a clock with seconds (12-hour or 24-hour), set in the Ubuntu typeface with no glow, so it stays clean on every theme.
+- **Resting:** a slim notch with the date and a clock with seconds (12-hour or 24-hour), set in the Ubuntu typeface with no glow, so it stays clean on every theme. The right side can show the weather and air quality (AQI) instead of the clock (Settings › Behaviour › Right side of the notch).
 - **Open:** hover and it springs open into the full panel. Short pop-ups (a new song, a finished timer, a notification) come out of the notch and fold back by themselves. Every animation can be interrupted, and reduced-motion settings are respected.
 - **Click-through:** only the island takes the mouse; everything around it clicks straight through to your apps. While a mouse button is held (moving a window, selecting text), hovering doesn't open it.
 - **Steps aside:** over a full-screen or maximized app it tucks into a thin tab at the top edge. Hover the tab to bring it back.
